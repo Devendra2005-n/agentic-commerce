@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-paper text-ink font-body antialiased;
+  }
+}
+
+/* 
+  Signature Element: The Perforated Ledger Line 
+  App Flow §4.3 & Design Brief §3.4 
+*/
+.stitched-line {
+  position: relative;
+}
+
+.stitched-line::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 24px;
+  width: 2px;
+  border-left: 2px dotted theme('colors.stitch');
+  z-index: 0;
+}
+
+.stamp-pill {
+  position: relative;
+  z-index: 10;
+  transition: transform 120ms cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+.stamp-pill:hover {
+  transform: scale(1.05);
+}
+
+/* Number rule: always mono, always tabular */
+.money, .timestamp, .code-value {
+  @apply font-mono tabular-nums;
+}
