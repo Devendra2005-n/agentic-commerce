@@ -17,13 +17,12 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
 
   // Initial load animation
   useGSAP(() => {
-    gsap.from(containerRef.current, { opacity: 0, y: 50, duration: 1, ease: "power3.out" });
-    gsap.from(leftPanelRef.current, { x: -100, opacity: 0, duration: 1, delay: 0.2, ease: "power3.out" });
-    gsap.from(formRef.current, { x: 100, opacity: 0, duration: 1, delay: 0.2, ease: "power3.out" });
+    gsap.from(containerRef.current, { opacity: 0, scale: 0.95, duration: 1.2, ease: "power3.out" });
+    gsap.from(leftPanelRef.current, { x: -50, opacity: 0, duration: 1, delay: 0.3, ease: "power3.out" });
+    gsap.from(formRef.current, { y: 30, opacity: 0, duration: 1, delay: 0.5, ease: "power3.out" });
   }, []);
 
   const toggleMode = () => {
-    // Animate form out
     gsap.to(formRef.current, {
       opacity: 0,
       y: 20,
@@ -31,7 +30,6 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
       onComplete: () => {
         setIsLogin(!isLogin);
         setError('');
-        // Animate form back in
         gsap.fromTo(formRef.current, 
           { opacity: 0, y: -20 },
           { opacity: 1, y: 0, duration: 0.4, ease: "back.out(1.5)" }
@@ -42,9 +40,9 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
 
   const handleSuccess = (idToken: string) => {
     gsap.to(containerRef.current, {
-      scale: 0.95,
+      scale: 1.1,
       opacity: 0,
-      duration: 0.6,
+      duration: 0.8,
       ease: "power3.inOut",
       onComplete: () => {
         onAuthSuccess(idToken);
@@ -81,49 +79,48 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 selection:bg-ledger-blue/20">
-      <div ref={containerRef} className="max-w-5xl w-full bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] overflow-hidden flex flex-col md:flex-row min-h-[600px]">
-        
-        {/* Left Side - E-commerce Branding */}
-        <div ref={leftPanelRef} className="md:w-5/12 bg-ink p-12 text-white flex flex-col justify-between relative overflow-hidden">
-          <video autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover z-0 opacity-60">
-            <source src="https://assets.mixkit.co/videos/preview/mixkit-girl-in-a-fashion-store-looking-at-clothes-4980-large.mp4" type="video/mp4" />
-          </video>
-          <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/60 to-ledger-blue/30 z-0"></div>
-          
-          <div className="relative z-10">
-            <h1 className="font-display text-4xl font-bold tracking-tight mb-4">Meera's Store</h1>
-            <p className="text-gray-300 font-body text-lg leading-relaxed">
-              Experience the future of shopping. Our AI agent perfectly understands your style and safely checks you out.
-            </p>
-          </div>
+    <div className="min-h-screen relative flex items-center justify-center p-4 md:p-12 overflow-hidden selection:bg-ledger-blue/20">
+      
+      {/* FULL SCREEN VIDEO BACKGROUND */}
+      <video autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover z-0">
+        <source src="https://assets.mixkit.co/videos/preview/mixkit-girl-in-a-fashion-store-looking-at-clothes-4980-large.mp4" type="video/mp4" />
+      </video>
+      {/* Dark overlay for contrast */}
+      <div className="absolute inset-0 bg-ink/60 z-0 backdrop-blur-sm"></div>
 
-          <div className="relative z-10 mt-12 md:mt-0">
-            <div className="flex -space-x-4 mb-4">
-              <div className="w-12 h-12 rounded-full border-2 border-ink bg-gray-200 bg-[url('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&q=80')] bg-cover"></div>
-              <div className="w-12 h-12 rounded-full border-2 border-ink bg-gray-200 bg-[url('https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&q=80')] bg-cover"></div>
-              <div className="w-12 h-12 rounded-full border-2 border-ink bg-gray-200 bg-[url('https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&q=80')] bg-cover"></div>
-              <div className="w-12 h-12 rounded-full border-2 border-ink bg-ledger-blue flex items-center justify-center text-sm font-bold text-white">+2k</div>
-            </div>
-            <p className="text-sm font-medium text-gray-400">Join thousands of premium shoppers today.</p>
+      <div ref={containerRef} className="max-w-6xl w-full relative z-10 flex flex-col md:flex-row items-center justify-between gap-12">
+        
+        {/* Left Side - E-commerce Branding (Floating over video) */}
+        <div ref={leftPanelRef} className="md:w-5/12 text-white flex flex-col justify-center">
+          <h1 className="font-display text-5xl md:text-6xl font-bold tracking-tight mb-6 drop-shadow-lg">Meera's Store</h1>
+          <p className="text-gray-200 font-body text-xl leading-relaxed drop-shadow-md mb-12">
+            Experience the future of shopping. Our AI agent perfectly understands your style and safely checks you out.
+          </p>
+
+          <div className="flex -space-x-4 mb-4">
+            <div className="w-14 h-14 rounded-full border-2 border-ink bg-gray-200 bg-[url('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&q=80')] bg-cover shadow-lg"></div>
+            <div className="w-14 h-14 rounded-full border-2 border-ink bg-gray-200 bg-[url('https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=100&q=80')] bg-cover shadow-lg"></div>
+            <div className="w-14 h-14 rounded-full border-2 border-ink bg-gray-200 bg-[url('https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&q=80')] bg-cover shadow-lg"></div>
+            <div className="w-14 h-14 rounded-full border-2 border-ink bg-ledger-blue flex items-center justify-center text-sm font-bold text-white shadow-lg">+2k</div>
           </div>
+          <p className="text-sm font-medium text-gray-300 drop-shadow-sm">Join thousands of premium shoppers today.</p>
         </div>
 
-        {/* Right Side - Form */}
-        <div className="md:w-7/12 p-12 flex flex-col justify-center bg-white relative">
-          <div ref={formRef} className="max-w-md w-full mx-auto">
+        {/* Right Side - Glassmorphic Form */}
+        <div className="md:w-6/12 max-w-md w-full">
+          <div ref={formRef} className="bg-white/95 backdrop-blur-xl p-10 rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.5)] border border-white/20">
             <h2 className="text-3xl font-bold text-ink mb-2">
               {isLogin ? 'Welcome back' : 'Create an account'}
             </h2>
-            <p className="text-gray-500 mb-6">
+            <p className="text-gray-500 mb-8">
               {isLogin ? 'Please enter your details to sign in.' : 'Enter your details to get started.'}
             </p>
 
-            {error && <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">{error}</div>}
+            {error && <div className="mb-6 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">{error}</div>}
 
             <button 
               onClick={handleGoogleLogin}
-              className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-ink font-medium py-3 rounded-lg transition-colors mb-6 flex items-center justify-center gap-3"
+              className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-ink font-medium py-3 rounded-xl transition-colors mb-6 flex items-center justify-center gap-3 shadow-sm"
             >
               <svg className="w-5 h-5" viewBox="0 0 24 24">
                 <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -147,7 +144,7 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
                   <input 
                     type="text" 
                     placeholder="Jane Doe" 
-                    className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-ledger-blue focus:border-ledger-blue outline-none transition-all bg-gray-50 focus:bg-white"
+                    className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-ledger-blue focus:border-ledger-blue outline-none transition-all bg-gray-50 focus:bg-white"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required={!isLogin}
@@ -160,7 +157,7 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
                 <input 
                   type="email" 
                   placeholder="hello@example.com" 
-                  className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-ledger-blue focus:border-ledger-blue outline-none transition-all bg-gray-50 focus:bg-white"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-ledger-blue focus:border-ledger-blue outline-none transition-all bg-gray-50 focus:bg-white"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
@@ -172,7 +169,7 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
                 <input 
                   type="password" 
                   placeholder="••••••••" 
-                  className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-ledger-blue focus:border-ledger-blue outline-none transition-all bg-gray-50 focus:bg-white"
+                  className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:ring-2 focus:ring-ledger-blue focus:border-ledger-blue outline-none transition-all bg-gray-50 focus:bg-white"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
@@ -181,7 +178,7 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
 
               <button 
                 type="submit" 
-                className="w-full bg-ink hover:bg-ink/90 text-white font-medium py-3 rounded-lg transition-colors shadow-lg shadow-ink/20 flex items-center justify-center gap-2 mt-2"
+                className="w-full bg-ink hover:bg-ink/90 text-white font-medium py-3.5 rounded-xl transition-colors shadow-lg shadow-ink/20 flex items-center justify-center gap-2 mt-2"
               >
                 {isLogin ? 'Sign In with Email' : 'Create Account'}
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
@@ -204,4 +201,3 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
     </div>
   );
 }
-
