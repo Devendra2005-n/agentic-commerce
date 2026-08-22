@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 export default function ChatWidget({ onTimelineUpdate }: { onTimelineUpdate: (ev: any) => void }) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<any[]>([
-    { type: 'system', text: "🛍 Hi! I can help you find something from Meera's store. What are you looking for?" }
+    { type: 'system', text: "🛍 Hi! I can help you find something from Flexta Store. What are you looking for?" }
   ]);
   const [input, setInput] = useState('');
   const [expandedReason, setExpandedReason] = useState<number | null>(null);
@@ -66,7 +66,7 @@ export default function ChatWidget({ onTimelineUpdate }: { onTimelineUpdate: (ev
           
           {/* Header */}
           <div className="bg-gradient-to-r from-ink to-[#2a2925] text-white p-4 flex justify-between items-center shadow-md z-10 relative">
-            <h3 className="font-display text-lg tracking-wide">Meera's Store Agent</h3>
+            <h3 className="font-display text-lg tracking-wide">Flexta Store Agent</h3>
             <button onClick={() => setIsOpen(false)} className="text-white/70 hover:text-white transition-colors">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
             </button>
@@ -202,7 +202,7 @@ export default function ChatWidget({ onTimelineUpdate }: { onTimelineUpdate: (ev
                                   key: rzpKey,
                                   amount: msg.payload.total * 100, // paise
                                   currency: "INR",
-                                  name: "Meera's Store",
+                                  name: "Flexta Store",
                                   description: "Agentic Checkout",
                                   handler: function (response: any) {
                                     sendTextToAgent(`payment_successful_callback_id_${response.razorpay_payment_id}`);
@@ -269,3 +269,4 @@ export default function ChatWidget({ onTimelineUpdate }: { onTimelineUpdate: (ev
     </>
   );
 }
+

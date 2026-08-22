@@ -6,7 +6,7 @@ export default function EmbeddedChat({ onTimelineUpdate, globalUser }: { onTimel
   const chatRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<any[]>([
-    { type: 'system', text: "?? Hi! I can help you find something from Meera's store. What are you looking for?" }
+    { type: 'system', text: "?? Hi! I can help you find something from Flexta Store. What are you looking for?" }
   ]);
   const [input, setInput] = useState('');
   const [expandedReason, setExpandedReason] = useState<number | null>(null);
@@ -76,7 +76,7 @@ export default function EmbeddedChat({ onTimelineUpdate, globalUser }: { onTimel
       
       {/* Header */}
       <div className="bg-gradient-to-r from-ink to-[#2a2925] text-white p-4 flex justify-between items-center shadow-md z-10 relative">
-        <h3 className="font-display text-lg tracking-wide">Meera's Store Agent</h3>
+        <h3 className="font-display text-lg tracking-wide">Flexta Store Agent</h3>
       </div>
 
       {/* Messages Area */}
@@ -192,7 +192,7 @@ export default function EmbeddedChat({ onTimelineUpdate, globalUser }: { onTimel
                           key: "rzp_test_5gT9B2hK0L9M6n",
                           amount: msg.payload.total * 100,
                           currency: "INR",
-                          name: "Meera's Store",
+                          name: "Flexta Store",
                           description: "Agentic Checkout Demo",
                           handler: async function (response: any) {
                             await sendTextToAgent("payment_successful_callback_id_");
@@ -248,3 +248,4 @@ export default function EmbeddedChat({ onTimelineUpdate, globalUser }: { onTimel
     </div>
   );
 }
+

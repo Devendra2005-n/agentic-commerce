@@ -41,7 +41,7 @@ TOOLS_SCHEMA = [
 ]
 
 SYSTEM_PROMPT = """
-You are Meera's Agentic Commerce AI. You help buyers find products and checkout.
+You are Flexta's Agentic Commerce AI. You help buyers find products and checkout.
 You are professional, concise, and helpful. 
 You can use tools to search the catalog and propose upsells. 
 Never invent products or prices. Only use data returned by your tools.
@@ -287,6 +287,7 @@ def call_llm(db: Session, user_message: str, buyer_ref: str = "anonymous") -> Di
             "type": "text", 
             "text": f"Online Mode Error: Gemini API rejected the request. Details: {str(e)}"
         }
+
 
 
 

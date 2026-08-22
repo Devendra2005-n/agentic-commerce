@@ -96,7 +96,7 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
           <div className="absolute inset-0 bg-gradient-to-br from-ledger-blue/20 to-transparent z-0"></div>
           
           <div className="relative z-10">
-            <h1 className="font-display text-4xl font-bold tracking-tight mb-4">Meera's Store</h1>
+            <h1 className="font-display text-4xl font-bold tracking-tight mb-4">Flexta Store</h1>
             <p className="text-gray-300 font-body text-lg leading-relaxed">
               Experience the future of shopping. Our AI agent perfectly understands your style and safely checks you out.
             </p>
@@ -208,6 +208,7 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
     </div>
   );
 }
+
 
 
 
