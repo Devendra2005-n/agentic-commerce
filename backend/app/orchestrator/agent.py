@@ -100,6 +100,7 @@ def call_llm(db: Session, user_message: str, buyer_ref: str = "anonymous") -> Di
                 reason_code="customer request"
             )
             db.add(intent_record)
+            db.flush() # Force INSERT so foreign keys exist
             
             if product.price_paise > merchant.max_order_paise:
                 # Gated and Rejected!
@@ -112,6 +113,7 @@ def call_llm(db: Session, user_message: str, buyer_ref: str = "anonymous") -> Di
                     reason_rendered=f"Product price ({product.price_paise/100}) exceeds merchant hard limit ({merchant.max_order_paise/100})"
                 )
                 db.add(rejection)
+                db.flush()
                 db.commit()
                 return {
                     "type": "text",
@@ -132,6 +134,7 @@ def call_llm(db: Session, user_message: str, buyer_ref: str = "anonymous") -> Di
                 reason_rendered="Price is within merchant limits."
             )
             db.add(approval)
+            db.flush()
             
             # 2. Log the money action
             event = AuditEvent(
@@ -284,6 +287,7 @@ def call_llm(db: Session, user_message: str, buyer_ref: str = "anonymous") -> Di
             "type": "text", 
             "text": f"Online Mode Error: Gemini API rejected the request. Details: {str(e)}"
         }
+
 
 
 
