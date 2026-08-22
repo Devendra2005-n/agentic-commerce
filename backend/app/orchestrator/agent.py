@@ -123,6 +123,54 @@ def call_llm(db: Session, user_message: str) -> Dict[str, Any]:
         if product:
             price = product.price_paise / 100
             
+            # --- GUARDRAIL CHECK ---
+            merchant = db.query(MerchantConfig).first()
+            if product.price_paise > merchant.max_order_paise:
+                # Gated and Rejected! (Failure handled gracefully)
+                from app.models import Decision
+                import uuid
+                rejection = Decision(
+                    decision_id=f"dec_{uuid.uuid4().hex[:8]}",
+                    session_id=session.session_id,
+                    rule_id="max_order_limit",
+                    decision="rejected",
+                    reason=f"Product price ({product.price_paise/100}) exceeds merchant hard limit ({merchant.max_order_paise/100})"
+                )
+                db.add(rejection)
+                db.commit()
+                return {
+                    "type": "text",
+                    "text": f"Guardrail blocked this checkout: The price of {product.title} exceeds this store's maximum AI-authorized transaction limit. An audit log has been created."
+                }
+            
+            # Approved! Write to Audit Trail
+            from app.models import AuditEvent, Decision
+            import uuid
+            import json
+            
+            # 1. Log the decision
+            dec_id = f"dec_{uuid.uuid4().hex[:8]}"
+            approval = Decision(
+                decision_id=dec_id,
+                session_id=session.session_id,
+                rule_id="max_order_limit",
+                decision="approved",
+                reason="Price is within merchant limits."
+            )
+            db.add(approval)
+            
+            # 2. Log the money action
+            event = AuditEvent(
+                event_id=f"evt_{uuid.uuid4().hex[:8]}",
+                session_id=session.session_id,
+                event_type="checkout_initiated",
+                status="pending",
+                decision_id=dec_id,
+                detail={"product": product.title, "amount_paise": product.price_paise}
+            )
+            db.add(event)
+            db.commit()
+            
             # Save the message to history so it doesn't get lost
             history.append({"role": "assistant", "content": f"Proceeding to checkout for {product.title}."})
             session.chat_history = history
@@ -130,18 +178,35 @@ def call_llm(db: Session, user_message: str) -> Dict[str, Any]:
             
             return {
                 "type": "checkout_confirm",
-                "text": f"Great choice! Please confirm your order.",
+                "text": f"Great choice! Please confirm your order. This action has been securely audited.",
                 "cart": [{"sku": product.sku, "title": product.title, "price": price}],
                 "total": price
             }
             
-    if user_message.lower().startswith("payment_successful_"):
-        history.append({"role": "assistant", "content": "Payment successful!"})
+    if user_message.lower().startswith("payment_successful_callback_id_"):
+        payment_id = user_message[31:]
+        
+        # Write to Audit Trail
+        from app.models import AuditEvent
+        import uuid
+        event = AuditEvent(
+            event_id=f"evt_{uuid.uuid4().hex[:8]}",
+            session_id=session.session_id,
+            event_type="payment_captured",
+            status="captured",
+            razorpay_order_id="mock_ord_123", # For the dashboard
+            razorpay_payment_id=payment_id,
+            detail={"message": "Razorpay payment succeeded and captured"}
+        )
+        db.add(event)
+        db.commit()
+        
+        history.append({"role": "assistant", "content": f"Payment {payment_id} was successfully processed!"})
         session.chat_history = history
         db.commit()
         return {
-            "type": "payment_success", 
-            "text": "Payment successful! The Razorpay webhook has captured your order. Your ledger has been updated securely."
+            "type": "payment_success",
+            "text": "Your payment was successfully processed! Thank you for your order. A receipt has been added to the audit trail."
         }
 
     try:
@@ -213,7 +278,28 @@ def call_llm(db: Session, user_message: str) -> Dict[str, Any]:
                     "text": f"I searched the catalog for '{query}'. Here is what I found:",
                     "results": results
                 }
+            # 2. Upsell Tool
+            elif tool_call.function.name == "propose_upsell":
+                sku = args.get("candidate_sku", "")
+                reason = args.get("reason_code", "Highly recommended based on your cart!")
+                # Get the upsell product
+                upsell_item = db.query(Product).filter(Product.sku == sku).first()
+                if not upsell_item:
+                    upsell_item = db.query(Product).first() # Fallback to any item
                 
+                if upsell_item:
+                    return {
+                        "type": "upsell_prompt",
+                        "text": "I noticed you were looking at some great items. Can I recommend this bundle addition?",
+                        "upsell_item": {
+                            "sku": upsell_item.sku, 
+                            "title": upsell_item.title, 
+                            "price": upsell_item.price_paise / 100, 
+                            "img": upsell_item.description
+                        },
+                        "reason_rendered": reason
+                    }
+                    
         # If the LLM just responded with text
         return {
             "type": "text",
