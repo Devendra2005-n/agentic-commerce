@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import SessionTimeline from './components/SessionTimeline';
 import EmbeddedChat from './components/EmbeddedChat';
+import AuthScreen from './components/AuthScreen';
 
 function App() {
+  const [globalAuthUser, setGlobalAuthUser] = useState<string | null>(null);
   const [timelineEvents, setTimelineEvents] = useState<any[]>([
     { time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'}), desc: 'Session started: sess_a1b2', type: 'info' }
   ]);
@@ -10,6 +12,10 @@ function App() {
   const addTimelineEvent = (event: any) => {
     setTimelineEvents(prev => [...prev, { time: new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit', second:'2-digit'}), ...event }]);
   };
+
+  if (!globalAuthUser) {
+    return <AuthScreen onAuthSuccess={(user) => setGlobalAuthUser(user)} />;
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-paper to-[#EAE8E1] text-ink p-4 md:p-8 font-body selection:bg-ledger-blue/20">
@@ -66,7 +72,7 @@ function App() {
 
         {/* Middle Column: Chatbot (5 cols) */}
         <div className="col-span-12 md:col-span-5 h-[600px]">
-          <EmbeddedChat onTimelineUpdate={addTimelineEvent} />
+          <EmbeddedChat onTimelineUpdate={addTimelineEvent} globalUser={globalAuthUser} />
         </div>
 
         {/* Right Column: Session Timeline (4 cols) */}
@@ -92,3 +98,4 @@ function App() {
 }
 
 export default App;
+
