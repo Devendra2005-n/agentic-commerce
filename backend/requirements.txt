@@ -7,3 +7,5 @@ pydantic
 pyjwt
 openai
 python-dotenv
+
+firebase-admin

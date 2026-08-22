@@ -54,11 +54,38 @@ def get_session_timeline(session_id: str, db: Session = Depends(get_db)):
 
 # --- Chat/Agent APIs ---
 from app.orchestrator.agent import call_llm
+import firebase_admin
+from firebase_admin import credentials, auth
+import os
+
+# Initialize Firebase Admin
+cred_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'firebase-service-account.json')
+try:
+    if not firebase_admin._apps:
+        firebase_env = os.getenv('FIREBASE_SERVICE_ACCOUNT')
+        if firebase_env:
+            cred_dict = json.loads(firebase_env)
+            cred = credentials.Certificate(cred_dict)
+        else:
+            cred = credentials.Certificate(cred_path)
+        firebase_admin.initialize_app(cred)
+except Exception as e:
+    print(f'Firebase initialization error: {e}')
 
 @app.post("/api/chat")
 def handle_chat_message(request: dict, db: Session = Depends(get_db)):
     user_msg = request.get("message", "")
     buyer_ref = request.get("buyer_ref", "anonymous")
+    
+    # Try to verify as Firebase ID Token first
+    try:
+        if buyer_ref and len(buyer_ref) > 100: # JWT tokens are long
+            decoded_token = auth.verify_id_token(buyer_ref)
+            # Use email if available, otherwise phone, otherwise uid
+            buyer_ref = decoded_token.get("email") or decoded_token.get("phone_number") or decoded_token.get("uid")
+    except Exception as e:
+        print(f"Token verification failed: {e}")
+        # Continue with raw buyer_ref (for testing/mock purposes)
     
     # Route through the True AI Orchestrator
     try:
@@ -106,3 +133,6 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
 @app.get("/health")
 def health_check():
     return {"status": "healthy"}
+
+
+

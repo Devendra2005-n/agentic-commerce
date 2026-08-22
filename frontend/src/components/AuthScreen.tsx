@@ -1,11 +1,15 @@
 import React, { useState, useRef } from 'react';
 import gsap from 'gsap';
 import { useGSAP } from '@gsap/react';
+import { auth, googleProvider } from '../firebase';
+import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
 
 export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: string) => void }) {
   const [isLogin, setIsLogin] = useState(true);
-  const [phone, setPhone] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [name, setName] = useState('');
+  const [error, setError] = useState('');
   
   const containerRef = useRef<HTMLDivElement>(null);
   const formRef = useRef<HTMLDivElement>(null);
@@ -26,6 +30,7 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
       duration: 0.3,
       onComplete: () => {
         setIsLogin(!isLogin);
+        setError('');
         // Animate form back in
         gsap.fromTo(formRef.current, 
           { opacity: 0, y: -20 },
@@ -35,19 +40,43 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSuccess = (idToken: string) => {
+    gsap.to(containerRef.current, {
+      scale: 0.95,
+      opacity: 0,
+      duration: 0.6,
+      ease: "power3.inOut",
+      onComplete: () => {
+        onAuthSuccess(idToken);
+      }
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (phone.length > 5) {
-      // Exit animation before notifying parent
-      gsap.to(containerRef.current, {
-        scale: 0.95,
-        opacity: 0,
-        duration: 0.6,
-        ease: "power3.inOut",
-        onComplete: () => {
-          onAuthSuccess(phone);
-        }
-      });
+    setError('');
+    try {
+      if (isLogin) {
+        const result = await signInWithEmailAndPassword(auth, email, password);
+        const token = await result.user.getIdToken();
+        handleSuccess(token);
+      } else {
+        const result = await createUserWithEmailAndPassword(auth, email, password);
+        const token = await result.user.getIdToken();
+        handleSuccess(token);
+      }
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const token = await result.user.getIdToken();
+      handleSuccess(token);
+    } catch (err: any) {
+      setError(err.message);
     }
   };
 
@@ -83,18 +112,39 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
             <h2 className="text-3xl font-bold text-ink mb-2">
               {isLogin ? 'Welcome back' : 'Create an account'}
             </h2>
-            <p className="text-gray-500 mb-8">
+            <p className="text-gray-500 mb-6">
               {isLogin ? 'Please enter your details to sign in.' : 'Enter your details to get started.'}
             </p>
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            {error && <div className="mb-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">{error}</div>}
+
+            <button 
+              onClick={handleGoogleLogin}
+              className="w-full bg-white border border-gray-200 hover:bg-gray-50 text-ink font-medium py-3 rounded-lg transition-colors mb-6 flex items-center justify-center gap-3"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24">
+                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                <path fill="#34A853" d="M12 24c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 21.53 7.7 24 12 24z"/>
+                <path fill="#FBBC05" d="M5.84 15.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V8.06H2.18C1.43 9.55 1 11.22 1 13s.43 3.45 1.18 4.94l3.66-2.84z"/>
+                <path fill="#EA4335" d="M12 4.75c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 1.43 14.97 0 12 0 7.7 0 3.99 2.47 2.18 6.06l3.66 2.84c.87-2.6 3.3-4.15 6.16-4.15z"/>
+              </svg>
+              Continue with Google
+            </button>
+
+            <div className="flex items-center gap-4 mb-6">
+              <div className="flex-1 h-px bg-gray-200"></div>
+              <span className="text-sm text-gray-400 font-medium">OR</span>
+              <div className="flex-1 h-px bg-gray-200"></div>
+            </div>
+
+            <form onSubmit={handleSubmit} className="space-y-5">
               {!isLogin && (
-                <div className="space-y-2">
+                <div className="space-y-1.5">
                   <label className="text-sm font-medium text-ink">Full Name</label>
                   <input 
                     type="text" 
                     placeholder="Jane Doe" 
-                    className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-ledger-blue focus:border-ledger-blue outline-none transition-all bg-gray-50 focus:bg-white"
+                    className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-ledger-blue focus:border-ledger-blue outline-none transition-all bg-gray-50 focus:bg-white"
                     value={name}
                     onChange={(e) => setName(e.target.value)}
                     required={!isLogin}
@@ -102,23 +152,35 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
                 </div>
               )}
               
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-ink">Phone Number</label>
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-ink">Email</label>
                 <input 
-                  type="tel" 
-                  placeholder="+1 (555) 000-0000" 
-                  className="w-full px-4 py-3 rounded-lg border border-gray-200 focus:ring-2 focus:ring-ledger-blue focus:border-ledger-blue outline-none transition-all bg-gray-50 focus:bg-white"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  type="email" 
+                  placeholder="hello@example.com" 
+                  className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-ledger-blue focus:border-ledger-blue outline-none transition-all bg-gray-50 focus:bg-white"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-sm font-medium text-ink">Password</label>
+                <input 
+                  type="password" 
+                  placeholder="••••••••" 
+                  className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-ledger-blue focus:border-ledger-blue outline-none transition-all bg-gray-50 focus:bg-white"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   required
                 />
               </div>
 
               <button 
                 type="submit" 
-                className="w-full bg-ink hover:bg-ink/90 text-white font-medium py-3.5 rounded-lg transition-colors shadow-lg shadow-ink/20 flex items-center justify-center gap-2"
+                className="w-full bg-ink hover:bg-ink/90 text-white font-medium py-3 rounded-lg transition-colors shadow-lg shadow-ink/20 flex items-center justify-center gap-2 mt-2"
               >
-                {isLogin ? 'Sign In' : 'Get Started'}
+                {isLogin ? 'Sign In with Email' : 'Create Account'}
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
               </button>
             </form>
