@@ -175,7 +175,7 @@ def call_llm(db: Session, user_message: str, buyer_ref: str = "anonymous") -> Di
     try:
         # Use Gemini's OpenAI Compatibility Endpoint!
         client = openai.OpenAI(
-            api_key=gemini_key,
+            api_key=api_key,
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
         )
         response = client.chat.completions.create(
