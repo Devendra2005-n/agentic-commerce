@@ -102,7 +102,7 @@ def call_llm(db: Session, user_message: str, buyer_ref: str = "anonymous") -> Di
             db.add(intent_record)
             
             if product.price_paise > merchant.max_order_paise:
-                # Gated and Rejected! (Failure handled gracefully)
+                # Gated and Rejected!
                 rejection = Decision(
                     decision_id=uuid.uuid4(),
                     intent_id=intent_id_val,
@@ -144,39 +144,7 @@ def call_llm(db: Session, user_message: str, buyer_ref: str = "anonymous") -> Di
             )
             db.add(event)
             db.commit()
-                return {
-                    "type": "text",
-                    "text": f"Guardrail blocked this checkout: The price of {product.title} exceeds this store's maximum AI-authorized transaction limit. An audit log has been created."
-                }
             
-            # Approved! Write to Audit Trail
-            from app.models import AuditEvent, Decision
-            import uuid
-            
-            # 1. Log the decision
-            dec_id = f"dec_{uuid.uuid4().hex[:8]}"
-            approval = Decision(
-                decision_id=dec_id,
-                session_id=session.session_id,
-                rule_id="max_order_limit",
-                decision="approved",
-                reason="Price is within merchant limits."
-            )
-            db.add(approval)
-            
-            # 2. Log the money action
-            event = AuditEvent(
-                event_id=f"evt_{uuid.uuid4().hex[:8]}",
-                session_id=session.session_id,
-                event_type="checkout_initiated",
-                status="pending",
-                decision_id=dec_id,
-                detail={"product": product.title, "amount_paise": product.price_paise}
-            )
-            db.add(event)
-            db.commit()
-            
-            # Save the message to history so it doesn't get lost
             history.append({"role": "assistant", "content": f"Proceeding to checkout for {product.title}."})
             session.chat_history = history
             db.commit()
@@ -316,6 +284,8 @@ def call_llm(db: Session, user_message: str, buyer_ref: str = "anonymous") -> Di
             "type": "text", 
             "text": f"Online Mode Error: Gemini API rejected the request. Details: {str(e)}"
         }
+
+
 
 
 
