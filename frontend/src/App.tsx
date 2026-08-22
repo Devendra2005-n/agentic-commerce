@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import SessionTimeline from './components/SessionTimeline';
 import EmbeddedChat from './components/EmbeddedChat';
 import AuthScreen from './components/AuthScreen';
+import { auth } from './firebase';
+import { signOut } from 'firebase/auth';
 
 function App() {
   const [globalAuthUser, setGlobalAuthUser] = useState<string | null>(null);
@@ -31,10 +33,26 @@ function App() {
               </h1>
               <p className="text-ink-faint mt-1 font-medium tracking-wide uppercase text-sm">Merchant Admin Dashboard</p>
             </div>
-            <div className="hidden md:flex h-12 w-12 rounded-full bg-ledger-blue/10 items-center justify-center shadow-inner border border-ledger-blue/20">
-              <svg className="w-6 h-6 text-ledger-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
+            <div className="flex items-center gap-4">
+              <div className="hidden md:flex h-12 w-12 rounded-full bg-ledger-blue/10 items-center justify-center shadow-inner border border-ledger-blue/20">
+                <svg className="w-6 h-6 text-ledger-blue" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <button 
+                onClick={async () => {
+                  try {
+                    await signOut(auth);
+                    setGlobalAuthUser(null);
+                  } catch (error) {
+                    console.error('Error signing out', error);
+                  }
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-medium rounded-lg shadow-sm transition-all text-sm"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                Sign Out
+              </button>
             </div>
           </div>
         </div>
@@ -98,4 +116,5 @@ function App() {
 }
 
 export default App;
+
 
