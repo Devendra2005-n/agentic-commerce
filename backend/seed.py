@@ -1,4 +1,6 @@
 import random
+from dotenv import load_dotenv
+load_dotenv()
 from sqlalchemy.orm import Session
 from app.database import SessionLocal, engine, Base
 from app.models import Product, MerchantConfig
@@ -56,7 +58,7 @@ def seed_db():
             db.add(prod)
             
     db.commit()
-    print("Database seeding complete! ✅")
+    print("Database seeding complete!")
     db.close()
 
 if __name__ == "__main__":

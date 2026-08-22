@@ -58,10 +58,11 @@ from app.orchestrator.agent import call_llm
 @app.post("/api/chat")
 def handle_chat_message(request: dict, db: Session = Depends(get_db)):
     user_msg = request.get("message", "")
+    buyer_ref = request.get("buyer_ref", "anonymous")
     
-    # Route through the True AI Orchestrator (falls back to mock if no API key)
+    # Route through the True AI Orchestrator
     try:
-        response = call_llm(db, user_msg)
+        response = call_llm(db, user_msg, buyer_ref)
         return response
     except Exception as e:
         print(f"LLM Error: {e}")

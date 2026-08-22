@@ -47,62 +47,22 @@ You can use tools to search the catalog and propose upsells.
 Never invent products or prices. Only use data returned by your tools.
 """
 
-def call_llm(db: Session, user_message: str) -> Dict[str, Any]:
+def call_llm(db: Session, user_message: str, buyer_ref: str = "anonymous") -> Dict[str, Any]:
     """
-    Real LLM integration using OpenAI.
-    Falls back to mock logic if OPENAI_API_KEY is not set.
+    Real LLM integration using OpenAI API spec for Gemini.
     """
     api_key = os.getenv("GEMINI_API_KEY")
     
-    # --- FALLBACK MOCK LOGIC (Runs if no API key is provided) ---
-    if not api_key:
-        print("No GEMINI_API_KEY found. Running mock AI logic...")
-        user_msg = user_message.lower()
-        if "lamp" in user_msg and "checkout" not in user_msg:
-            return {
-                "type": "catalog_results",
-                "text": "Here are two options under ₹1,200:",
-                "results": [
-                    {"sku": "LAMP_A", "title": "Minimalist Lamp", "price": 899, "img": "https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=400&q=80"},
-                    {"sku": "LAMP_B", "title": "Architect Lamp", "price": 1150, "img": "https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?w=400&q=80"}
-                ]
-            }
-        elif "checkout lamp" in user_msg:
-            return {
-                "type": "upsell_prompt",
-                "text": "Buyers who got the Architect Lamp often add:",
-                "upsell_item": {"sku": "BULB_PACK", "title": "LED Bulb Pack", "price": 249, "img": "https://images.unsplash.com/photo-1493612276216-ee3925520721?w=400&q=80"},
-                "reason_rendered": "38% of buyers who purchased Lamp B also bought this in the last 90 days."
-            }
-        elif "add" in user_msg or "checkout" in user_msg:
-            total = 1150
-            cart = [{"sku": "LAMP_B", "title": "Architect Lamp", "price": 1150}]
-            if "add" in user_msg:
-                cart.append({"sku": "BULB_PACK", "title": "LED Bulb Pack", "price": 249})
-                total += 249
-            return {"type": "checkout_confirm", "text": "Confirm your order.", "cart": cart, "total": total}
-        elif "confirm" in user_msg or "pay" in user_msg:
-            return {"type": "payment_success", "text": "Payment successful! Your order #ord_Naj123 has been created. The ledger has recorded all guardrail decisions securely."}
-            
-        return {"type": "text", "text": "Hi! I can help you find something from Meera's store. What are you looking for? (Mock AI)"}
-
-
-    # --- REAL LLM LOGIC (Using Gemini API!) ---
-    
-    gemini_key = os.getenv("GEMINI_API_KEY")
-    if not gemini_key:
-        return {"type": "text", "text": "Please add GEMINI_API_KEY to your backend/.env file!"}
-        
     print("GEMINI_API_KEY found! Running True Agentic orchestration via Gemini...")
     
-    # We fetch a default session for MVP
+    # Authenticate User & Load Isolated Session
     from app.models import Session as DbSession, MerchantConfig
-    session = db.query(DbSession).first()
+    session = db.query(DbSession).filter(DbSession.buyer_ref == buyer_ref).first()
     if not session:
-        # Create a default session if it doesn't exist
+        # Create a new isolated session for this user
         merchant = db.query(MerchantConfig).first()
         if merchant:
-            session = DbSession(merchant_id=merchant.merchant_id, actor_type="human")
+            session = DbSession(merchant_id=merchant.merchant_id, actor_type="human", buyer_ref=buyer_ref)
             db.add(session)
             db.commit()
             db.refresh(session)
@@ -111,7 +71,10 @@ def call_llm(db: Session, user_message: str) -> Dict[str, Any]:
             
     history = session.chat_history or []
     if not history:
-        history = [{"role": "system", "content": SYSTEM_PROMPT}]
+        dynamic_system_prompt = SYSTEM_PROMPT
+        if buyer_ref != "anonymous":
+            dynamic_system_prompt += f"\n\n[CONFIDENTIAL KNOWLEDGE]: The current user is authenticated as phone number {buyer_ref}. Greet them back! Example: Welcome back!"
+        history = [{"role": "system", "content": dynamic_system_prompt}]
         
     history.append({"role": "user", "content": user_message})
     
@@ -312,3 +275,4 @@ def call_llm(db: Session, user_message: str) -> Dict[str, Any]:
             "type": "text", 
             "text": f"Online Mode Error: Gemini API rejected the request. Details: {str(e)}"
         }
+

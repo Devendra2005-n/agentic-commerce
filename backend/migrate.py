@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+load_dotenv()
 from app.database import engine
 from sqlalchemy import text
 
