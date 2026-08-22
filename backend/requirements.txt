@@ -6,3 +6,4 @@ razorpay
 pydantic
 pyjwt
 openai
+python-dotenv
