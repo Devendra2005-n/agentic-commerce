@@ -85,7 +85,7 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
       
       {/* Background Video */}
       <video autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover z-0">
-        <source src="https://assets.mixkit.co/videos/preview/mixkit-girl-in-a-fashion-store-looking-at-clothes-4980-large.mp4" type="video/mp4" />
+        <source src="/v1.mp4" type="video/mp4" />
       </video>
       <div className="absolute inset-0 bg-black/30 z-0 backdrop-blur-sm"></div>
 
@@ -175,7 +175,7 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
                 <label className="text-sm font-medium text-ink">Password</label>
                 <input 
                   type="password" 
-                  placeholder="••••••••" 
+                  placeholder="ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½" 
                   className="w-full px-4 py-2.5 rounded-lg border border-gray-200 focus:ring-2 focus:ring-ledger-blue focus:border-ledger-blue outline-none transition-all bg-gray-50 focus:bg-white"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -208,6 +208,7 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
     </div>
   );
 }
+
 
 
 
