@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 
 export default function EmbeddedChat({ onTimelineUpdate }: { onTimelineUpdate: (ev: any) => void }) {
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [messages, setMessages] = useState<any[]>([
-    { type: 'system', text: "🛍 Hi! I can help you find something from Meera's store. What are you looking for?" }
+    { type: 'system', text: "👋 Hi! I can help you find something from Meera's store. What are you looking for?" }
   ]);
   const [input, setInput] = useState('');
   const [expandedReason, setExpandedReason] = useState<number | null>(null);
@@ -19,20 +21,20 @@ export default function EmbeddedChat({ onTimelineUpdate }: { onTimelineUpdate: (
       const response = await fetch('https://agentic-commerce-qgvc.onrender.com/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMsg })
+        body: JSON.stringify({ message: userMsg, buyer_ref: phoneNumber })
       });
       const data = await response.json();
       setMessages(prev => [...prev, { type: data.type, text: data.text, payload: data }]);
       
       // Update Dashboard Timeline dynamically based on agent action!
       if (data.type === 'catalog_results') {
-        onTimelineUpdate({ desc: 'Catalog search executed (2 matches)', type: 'check', checks: ['✓ sku_exists', '✓ price_matches'] });
+        onTimelineUpdate({ desc: 'Catalog search executed', type: 'check', checks: ['✅ sku_exists', '✅ price_matches'] });
       } else if (data.type === 'upsell_prompt') {
-        onTimelineUpdate({ desc: `Upsell proposed: ${data.upsell_item.title}`, type: 'check', reason: data.reason_rendered, checks: ['✓ upsell_attempt_cap', "✓ reason_req'd"] });
+        onTimelineUpdate({ desc: `Upsell proposed`, type: 'check', reason: data.reason_rendered, checks: ['✅ upsell_attempt_cap', "✅ reason_req'd"] });
       } else if (data.type === 'checkout_confirm') {
-        onTimelineUpdate({ desc: 'Checkout verified by Guardrail', type: 'check', checks: ['✓ order_ceiling (₹1399 ≤ ₹5000)'] });
+        onTimelineUpdate({ desc: 'Checkout verified by Guardrail', type: 'check', checks: ['✅ order_ceiling'] });
       } else if (data.type === 'payment_success') {
-        onTimelineUpdate({ desc: 'Webhook: payment.captured ✓ verified', type: 'success' });
+        onTimelineUpdate({ desc: 'Webhook: payment.captured ✅ verified', type: 'success' });
       }
       
     } catch (err) {
@@ -46,6 +48,33 @@ export default function EmbeddedChat({ onTimelineUpdate }: { onTimelineUpdate: (
     setInput('');
     await sendTextToAgent(currentInput);
   };
+
+  if (!isLoggedIn) {
+    return (
+      <div className="h-[600px] flex flex-col items-center justify-center bg-gray-50 p-6 border border-gray-200 rounded-2xl shadow-sm">
+        <div className="bg-white p-8 rounded-xl shadow-md text-center max-w-sm w-full">
+          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">Login Securely</h2>
+          <p className="text-gray-500 mb-6 text-sm">Enter your phone number to access your personalized AI agent.</p>
+          <form onSubmit={(e) => { e.preventDefault(); if (phoneNumber.trim().length > 5) setIsLoggedIn(true); }}>
+            <input 
+              type="tel" 
+              placeholder="+1 (555) 000-0000" 
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all mb-4 outline-none text-center text-lg"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
+              required
+            />
+            <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-4 rounded-lg transition-colors shadow-sm">
+              Secure Login
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-[600px] bg-paper border border-ink-faint/20 rounded-2xl shadow-sm overflow-hidden">
@@ -265,3 +294,4 @@ export default function EmbeddedChat({ onTimelineUpdate }: { onTimelineUpdate: (
     </div>
   );
 }
+
