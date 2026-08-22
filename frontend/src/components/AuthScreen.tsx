@@ -81,15 +81,19 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 selection:bg-ledger-blue/20">
-      <div ref={containerRef} className="max-w-5xl w-full bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] overflow-hidden flex flex-col md:flex-row min-h-[600px]">
+    <div className="min-h-screen relative flex items-center justify-center p-4 selection:bg-ledger-blue/20 overflow-hidden">
+      
+      {/* Background Video */}
+      <video autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover z-0">
+        <source src="https://assets.mixkit.co/videos/preview/mixkit-girl-in-a-fashion-store-looking-at-clothes-4980-large.mp4" type="video/mp4" />
+      </video>
+      <div className="absolute inset-0 bg-black/30 z-0 backdrop-blur-sm"></div>
+
+      <div ref={containerRef} className="max-w-5xl w-full bg-white rounded-3xl shadow-[0_30px_100px_-15px_rgba(0,0,0,0.5)] overflow-hidden flex flex-col md:flex-row min-h-[600px] relative z-10">
         
         {/* Left Side - E-commerce Branding */}
         <div ref={leftPanelRef} className="md:w-5/12 bg-ink p-12 text-white flex flex-col justify-between relative overflow-hidden">
-          <video autoPlay loop muted playsInline className="absolute inset-0 w-full h-full object-cover z-0 opacity-60">
-            <source src="https://assets.mixkit.co/videos/preview/mixkit-girl-in-a-fashion-store-looking-at-clothes-4980-large.mp4" type="video/mp4" />
-          </video>
-          <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/60 to-ledger-blue/30 z-0"></div>
+          <div className="absolute inset-0 bg-gradient-to-br from-ledger-blue/20 to-transparent z-0"></div>
           
           <div className="relative z-10">
             <h1 className="font-display text-4xl font-bold tracking-tight mb-4">Meera's Store</h1>
@@ -204,4 +208,6 @@ export default function AuthScreen({ onAuthSuccess }: { onAuthSuccess: (user: st
     </div>
   );
 }
+
+
 
