@@ -16,7 +16,7 @@ export default function EmbeddedChat({ onTimelineUpdate }: { onTimelineUpdate: (
     onTimelineUpdate({ desc: `Buyer said: "${userMsg}"`, type: 'info' });
 
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/chat', {
+      const response = await fetch('https://agentic-commerce-qgvc.onrender.com/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: userMsg })
@@ -180,7 +180,7 @@ export default function EmbeddedChat({ onTimelineUpdate }: { onTimelineUpdate: (
                           // Trigger Real Razorpay Modal Integration
                           if ((window as any).Razorpay) {
                             try {
-                              const res = await fetch('http://127.0.0.1:8000/api/orders', {
+                              const res = await fetch('https://agentic-commerce-qgvc.onrender.com/api/orders', {
                                 method: 'POST',
                                 headers: { 'Content-Type': 'application/json' },
                                 body: JSON.stringify({ amount_paise: msg.payload.total * 100 })
