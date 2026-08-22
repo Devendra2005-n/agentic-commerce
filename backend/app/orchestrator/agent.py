@@ -88,19 +88,62 @@ def call_llm(db: Session, user_message: str, buyer_ref: str = "anonymous") -> Di
             
             # --- GUARDRAIL CHECK ---
             merchant = db.query(MerchantConfig).first()
+            import uuid
+            
+            # Create an Intent first
+            intent_id_val = uuid.uuid4()
+            intent_record = Intent(
+                intent_id=intent_id_val,
+                session_id=session.session_id,
+                action_type="checkout",
+                payload={"product": product.title, "amount_paise": product.price_paise},
+                reason_code="customer request"
+            )
+            db.add(intent_record)
+            
             if product.price_paise > merchant.max_order_paise:
                 # Gated and Rejected! (Failure handled gracefully)
-                from app.models import Decision
-                import uuid
                 rejection = Decision(
-                    decision_id=f"dec_{uuid.uuid4().hex[:8]}",
-                    session_id=session.session_id,
-                    rule_id="max_order_limit",
+                    decision_id=uuid.uuid4(),
+                    intent_id=intent_id_val,
                     decision="rejected",
-                    reason=f"Product price ({product.price_paise/100}) exceeds merchant hard limit ({merchant.max_order_paise/100})"
+                    gate_level="hard",
+                    checks_run=["max_order_limit"],
+                    reason_rendered=f"Product price ({product.price_paise/100}) exceeds merchant hard limit ({merchant.max_order_paise/100})"
                 )
                 db.add(rejection)
                 db.commit()
+                return {
+                    "type": "text",
+                    "text": f"Guardrail blocked this checkout: The price of {product.title} exceeds this store's maximum AI-authorized transaction limit. An audit log has been created."
+                }
+            
+            # Approved! Write to Audit Trail
+            from app.models import AuditEvent, Decision
+            
+            # 1. Log the decision
+            dec_id = uuid.uuid4()
+            approval = Decision(
+                decision_id=dec_id,
+                intent_id=intent_id_val,
+                decision="approved",
+                gate_level="auto",
+                checks_run=["max_order_limit"],
+                reason_rendered="Price is within merchant limits."
+            )
+            db.add(approval)
+            
+            # 2. Log the money action
+            event = AuditEvent(
+                event_id=uuid.uuid4(),
+                session_id=session.session_id,
+                intent_id=intent_id_val,
+                decision_id=dec_id,
+                status="created",
+                detail={"product": product.title, "amount_paise": product.price_paise}
+            )
+            db.add(event)
+            db.commit()
                 return {
                     "type": "text",
                     "text": f"Guardrail blocked this checkout: The price of {product.title} exceeds this store's maximum AI-authorized transaction limit. An audit log has been created."
@@ -152,9 +195,8 @@ def call_llm(db: Session, user_message: str, buyer_ref: str = "anonymous") -> Di
         from app.models import AuditEvent
         import uuid
         event = AuditEvent(
-            event_id=f"evt_{uuid.uuid4().hex[:8]}",
+            event_id=uuid.uuid4(),
             session_id=session.session_id,
-            event_type="payment_captured",
             status="captured",
             razorpay_order_id="mock_ord_123", # For the dashboard
             razorpay_payment_id=payment_id,
@@ -274,4 +316,6 @@ def call_llm(db: Session, user_message: str, buyer_ref: str = "anonymous") -> Di
             "type": "text", 
             "text": f"Online Mode Error: Gemini API rejected the request. Details: {str(e)}"
         }
+
+
 
