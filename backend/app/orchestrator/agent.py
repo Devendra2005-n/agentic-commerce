@@ -109,7 +109,6 @@ def call_llm(db: Session, user_message: str, buyer_ref: str = "anonymous") -> Di
             # Approved! Write to Audit Trail
             from app.models import AuditEvent, Decision
             import uuid
-            import json
             
             # 1. Log the decision
             dec_id = f"dec_{uuid.uuid4().hex[:8]}"
