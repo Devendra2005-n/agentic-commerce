@@ -1,8 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
 
 export default function EmbeddedChat({ onTimelineUpdate }: { onTimelineUpdate: (ev: any) => void }) {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const loginRef = useRef<HTMLDivElement>(null);
+  const chatRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const [messages, setMessages] = useState<any[]>([
     { type: 'system', text: "👋 Hi! I can help you find something from Meera's store. What are you looking for?" }
   ]);
@@ -49,16 +54,51 @@ export default function EmbeddedChat({ onTimelineUpdate }: { onTimelineUpdate: (
     await sendTextToAgent(currentInput);
   };
 
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (phoneNumber.trim().length > 5) {
+      gsap.to(loginRef.current, { 
+        scale: 0.9, 
+        opacity: 0, 
+        duration: 0.4, 
+        ease: "power2.inOut",
+        onComplete: () => {
+          setIsLoggedIn(true);
+        }
+      });
+    }
+  };
+
+  useGSAP(() => {
+    if (isLoggedIn && chatRef.current) {
+      gsap.fromTo(chatRef.current, 
+        { y: 50, opacity: 0 }, 
+        { y: 0, opacity: 1, duration: 0.6, ease: "back.out(1.7)" }
+      );
+    }
+  }, [isLoggedIn]);
+
+  useGSAP(() => {
+    // Animate new messages
+    gsap.fromTo(".message-bubble:last-child",
+      { scale: 0.8, opacity: 0, y: 10 },
+      { scale: 1, opacity: 1, y: 0, duration: 0.4, ease: "back.out(1.5)", transformOrigin: "bottom left" }
+    );
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
+
   if (!isLoggedIn) {
     return (
-      <div className="h-[600px] flex flex-col items-center justify-center bg-gray-50 p-6 border border-gray-200 rounded-2xl shadow-sm">
+      <div ref={loginRef} className="h-[600px] flex flex-col items-center justify-center bg-gray-50 p-6 border border-gray-200 rounded-2xl shadow-sm">
         <div className="bg-white p-8 rounded-xl shadow-md text-center max-w-sm w-full">
           <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
             <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
           </div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Login Securely</h2>
           <p className="text-gray-500 mb-6 text-sm">Enter your phone number to access your personalized AI agent.</p>
-          <form onSubmit={(e) => { e.preventDefault(); if (phoneNumber.trim().length > 5) setIsLoggedIn(true); }}>
+          <form onSubmit={handleLogin}>
             <input 
               type="tel" 
               placeholder="+1 (555) 000-0000" 
@@ -77,7 +117,7 @@ export default function EmbeddedChat({ onTimelineUpdate }: { onTimelineUpdate: (
   }
 
   return (
-    <div className="flex flex-col h-[600px] bg-paper border border-ink-faint/20 rounded-2xl shadow-sm overflow-hidden">
+    <div ref={chatRef} className="flex flex-col h-[600px] bg-paper border border-ink-faint/20 rounded-2xl shadow-sm overflow-hidden">
       
       {/* Header */}
       <div className="bg-gradient-to-r from-ink to-[#2a2925] text-white p-4 flex justify-between items-center shadow-md z-10 relative">
@@ -87,7 +127,7 @@ export default function EmbeddedChat({ onTimelineUpdate }: { onTimelineUpdate: (
       {/* Messages Area */}
       <div className="flex-1 p-4 overflow-y-auto space-y-6 bg-paper relative">
         {messages.map((msg, idx) => (
-          <div key={idx} className={`flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
+          <div key={idx} className={`message-bubble flex ${msg.type === 'user' ? 'justify-end' : 'justify-start'}`}>
             
             {/* User Bubble */}
             {msg.type === 'user' && (
@@ -294,4 +334,6 @@ export default function EmbeddedChat({ onTimelineUpdate }: { onTimelineUpdate: (
     </div>
   );
 }
+
+
 

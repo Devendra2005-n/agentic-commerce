@@ -1,8 +1,33 @@
-import React from 'react';
+import React, { useRef } from 'react';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
 
 export default function SessionTimeline({ events }: { events: any[] }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useGSAP(() => {
+    // Animate the newest timeline event
+    if (events.length > 0) {
+      const newEvent = containerRef.current?.lastElementChild;
+      if (newEvent && !newEvent.classList.contains('gsap-animated')) {
+        gsap.fromTo(newEvent, 
+          { x: 50, opacity: 0 }, 
+          { x: 0, opacity: 1, duration: 0.5, ease: 'power2.out', onComplete: () => newEvent.classList.add('gsap-animated') }
+        );
+        
+        // Stagger the checks inside it
+        const checks = newEvent.querySelectorAll('.timeline-check');
+        if (checks.length > 0) {
+          gsap.fromTo(checks,
+            { y: -10, opacity: 0 },
+            { y: 0, opacity: 1, duration: 0.3, stagger: 0.15, ease: 'back.out(2)', delay: 0.3 }
+          );
+        }
+      }
+    }
+  }, [events]);
   return (
-    <div className="stitched-line pl-12 py-4">
+    <div ref={containerRef} className="stitched-line pl-12 py-4">
       {events.length === 0 && <p className="text-ink-faint italic">Awaiting events...</p>}
       {events.map((ev, idx) => (
         <div key={idx} className="relative mb-8 group animate-fade-in-up">
@@ -28,7 +53,7 @@ export default function SessionTimeline({ events }: { events: any[] }) {
               {ev.checks && (
                 <div className="mt-2 space-y-1">
                   {ev.checks.map((chk: string, i: number) => (
-                    <span key={i} className="code-value text-xs bg-ledger-blue/10 text-ledger-blue px-2 py-0.5 rounded-sm mr-2 inline-block mb-1">
+                    <span key={i} className="timeline-check code-value text-xs bg-ledger-blue/10 text-ledger-blue px-2 py-0.5 rounded-sm mr-2 inline-block mb-1">
                       {chk}
                     </span>
                   ))}
@@ -41,3 +66,4 @@ export default function SessionTimeline({ events }: { events: any[] }) {
     </div>
   );
 }
+
