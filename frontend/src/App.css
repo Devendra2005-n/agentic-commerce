@@ -1,0 +1,476 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:wght@600;700&display=swap');
+
+:root {
+  --bg-color: #F4F3EE;
+  --text-dark: #1E1E1E;
+  --text-muted: #6B7280;
+  --card-bg: #FFFFFF;
+  --primary-accent: #8693A4; /* Blue-gray from send button */
+  --header-bg: #222222;
+  --border-light: #E5E7EB;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-color);
+  font-family: 'Inter', sans-serif;
+  color: var(--text-dark);
+}
+
+.dashboard-container {
+  width: 100%;
+  margin: 0;
+  padding: 24px 32px;
+  height: 100vh;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* TOP BAR */
+.top-bar {
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 20px 32px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+}
+
+.top-bar-left h1 {
+  font-family: 'Playfair Display', serif;
+  font-size: 28px;
+  margin: 0 0 4px 0;
+  color: #1A202C;
+}
+
+.top-bar-left p {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.5px;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.top-bar-right {
+  display: flex;
+  gap: 12px;
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid var(--border-light);
+  background: #F8FAFC;
+  cursor: pointer;
+  color: var(--text-dark);
+}
+
+.sign-out-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--border-light);
+  background: white;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: 'Inter', sans-serif;
+}
+
+/* MAIN GRID */
+.main-grid {
+  display: grid;
+  grid-template-columns: 240px 1fr 400px;
+  gap: 24px;
+  flex: 1;
+  min-height: 0; /* Important for scrollable children */
+}
+
+/* CARDS */
+.card {
+  background: var(--card-bg);
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.02);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.card-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.card-header h2 {
+  font-family: 'Playfair Display', serif;
+  font-size: 18px;
+  margin: 0;
+  color: var(--text-dark);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-header h2 .dot {
+  width: 8px;
+  height: 8px;
+  background: #C4A47C; /* Gold dot */
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* LEDGER (LEFT) */
+.ledger-stats {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.stat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.stat-row span {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.stat-value {
+  padding: 4px 12px;
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+.revenue-box {
+  background: #F8FAFC;
+  border: 1px solid var(--border-light);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.revenue-box span {
+  font-weight: 600;
+  color: #374151;
+}
+
+.revenue-box .rev-amount {
+  font-weight: 700;
+  color: #1E3A5F;
+  font-size: 18px;
+}
+
+/* CHAT (CENTER) */
+.chat-card .card-header {
+  background: var(--header-bg);
+  border-bottom: none;
+}
+
+.chat-card .card-header h2 {
+  color: white;
+  font-size: 16px;
+  font-weight: 400;
+}
+
+.chat-messages {
+  flex: 1;
+  background: #FDFDFD;
+  padding: 24px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.message {
+  max-width: 85%;
+  padding: 14px 18px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.5;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.message.user {
+  background: var(--primary-accent);
+  color: white;
+  align-self: flex-end;
+  border-bottom-right-radius: 4px;
+}
+
+.message.assistant {
+  background: white;
+  border: 1px solid var(--border-light);
+  color: #374151;
+  align-self: flex-start;
+  border-bottom-left-radius: 4px;
+}
+
+.chat-input-wrapper {
+  padding: 16px 24px;
+  background: white;
+  border-top: 1px solid var(--border-light);
+  display: flex;
+  gap: 12px;
+}
+
+.chat-input-wrapper input {
+  flex: 1;
+  background: #F3F4F6;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 12px 16px;
+  font-size: 14px;
+  outline: none;
+  transition: border 0.2s;
+}
+
+.chat-input-wrapper input:focus {
+  border-color: var(--primary-accent);
+}
+
+.chat-input-wrapper button {
+  background: var(--primary-accent);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.chat-input-wrapper button:hover {
+  opacity: 0.9;
+}
+
+/* AUDIT LOG (RIGHT) */
+.audit-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.session-badge {
+  background: #111;
+  color: white;
+  font-size: 11px;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-family: monospace;
+}
+
+.audit-timeline {
+  padding: 24px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.timeline-item {
+  display: flex;
+  gap: 16px;
+  position: relative;
+  padding-bottom: 24px;
+}
+
+.timeline-item:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 5px;
+  top: 14px;
+  bottom: 0;
+  width: 1px;
+  border-left: 1px dashed #D1D5DB;
+}
+
+.timeline-dot {
+  width: 11px;
+  height: 11px;
+  background: white;
+  border: 3px solid #6B7280;
+  border-radius: 50%;
+  position: relative;
+  z-index: 1;
+  margin-top: 3px;
+}
+
+.timeline-dot.success {
+  border-color: #10B981;
+}
+
+.timeline-dot.action {
+  border-color: #3B82F6;
+}
+
+.timeline-content {
+  display: flex;
+  gap: 12px;
+  flex: 1;
+}
+
+.timeline-time {
+  font-family: monospace;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding-top: 1px;
+  min-width: 65px;
+}
+
+.timeline-text {
+  font-size: 13px;
+  color: #374151;
+  line-height: 1.4;
+}
+
+.timeline-text strong {
+  color: #111;
+}
+
+/* RICH MESSAGE CARDS */
+.message-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.product-carousel {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  padding: 4px 0 12px 0;
+}
+
+.product-card {
+  min-width: 140px;
+  border: 1px solid #E5E7EB;
+  border-radius: 8px;
+  padding: 12px;
+  background: white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+}
+
+.img-placeholder {
+  height: 100px;
+  background: #F3F4F6;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9CA3AF;
+  margin-bottom: 12px;
+  font-size: 13px;
+}
+
+.product-card h3 {
+  font-size: 14px;
+  margin: 0 0 4px 0;
+  color: #111;
+  font-weight: 500;
+}
+
+.product-card p {
+  font-size: 14px;
+  color: #4B5563;
+  margin: 0 0 12px 0;
+}
+
+.product-card button {
+  width: 100%;
+  padding: 8px;
+  background: #2B4266;
+  color: white;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.cart-card {
+  background: white;
+  border: 1px solid #E5E7EB;
+  border-radius: 12px;
+  padding: 20px;
+  margin-top: 4px;
+  width: 260px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.cart-card h3 {
+  font-family: 'Playfair Display', serif;
+  margin: -20px -20px 16px -20px;
+  background: #F8F7F3;
+  padding: 16px 20px;
+  border-radius: 12px 12px 0 0;
+  border-bottom: 1px solid #E5E7EB;
+  color: #111;
+  font-size: 18px;
+}
+
+.cart-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 15px;
+  margin-bottom: 12px;
+  color: #111;
+}
+
+.cart-total {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 500;
+  border-top: 1px dashed #D1D5DB;
+  padding-top: 16px;
+  margin-top: 16px;
+  margin-bottom: 20px;
+  color: #111;
+  font-size: 16px;
+}
+
+.cart-total span:last-child {
+  color: #1E3A5F;
+  font-weight: 600;
+  font-size: 18px;
+}
+
+.cart-card button {
+  width: 100%;
+  background: #1E1D1A;
+  color: white;
+  padding: 14px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+.cart-card button:hover {
+  background: #000;
+}

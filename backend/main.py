@@ -1,0 +1,85 @@
+from fastapi import FastAPI, Depends, Request, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+import uuid
+from pydantic import BaseModel
+from dotenv import load_dotenv
+load_dotenv()
+from app.database import get_db
+from app.catalog.service import search_catalog
+from app.payments.service import initiate_checkout, handle_razorpay_webhook
+from app.payments.razorpay_client import verify_webhook_signature, get_decrypted_secret
+from app.models import MerchantConfig
+from app.orchestrator.agent import process_chat
+
+class ChatRequest(BaseModel):
+    message: str
+
+app = FastAPI(title="Growth & Trust Agent API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.get("/health")
+def health_check():
+    return {"status": "healthy"}
+
+@app.get("/v1/agent/catalog")
+def get_catalog(query: str, max_price_paise: int = None, tags: str = None, db: Session = Depends(get_db)):
+    tag_list = tags.split(",") if tags else None
+    results = search_catalog(db, query, max_price_paise, tag_list)
+    return {"data": results}
+
+from app.models import MerchantConfig, Session as DbSession, ActorTypeEnum
+
+@app.post("/v1/sessions")
+def create_session(db: Session = Depends(get_db)):
+    merchant = db.query(MerchantConfig).first()
+    if not merchant:
+        raise HTTPException(status_code=500, detail="No merchant configured")
+        
+    session_db = DbSession(
+        merchant_id=merchant.merchant_id,
+        actor_type=ActorTypeEnum.human
+    )
+    db.add(session_db)
+    db.commit()
+    db.refresh(session_db)
+    return {"session_id": session_db.session_id}
+
+@app.post("/v1/checkout/{session_id}")
+def checkout(session_id: uuid.UUID, db: Session = Depends(get_db)):
+    return initiate_checkout(db, session_id)
+
+@app.post("/v1/chat/{session_id}")
+def chat(session_id: uuid.UUID, req: ChatRequest, db: Session = Depends(get_db)):
+    return process_chat(db, session_id, req.message)
+
+@app.post("/v1/webhooks/razorpay/{merchant_id}")
+async def razorpay_webhook(merchant_id: str, request: Request, db: Session = Depends(get_db)):
+    body_bytes = await request.body()
+    body_str = body_bytes.decode('utf-8')
+    signature = request.headers.get('X-Razorpay-Signature')
+    
+    if not signature:
+        raise HTTPException(status_code=400, detail="Missing signature")
+        
+    merchant = db.query(MerchantConfig).filter(MerchantConfig.merchant_id == merchant_id).first()
+    if not merchant:
+        raise HTTPException(status_code=404, detail="Merchant not found")
+        
+    import razorpay
+    client = razorpay.Client(auth=("dummy", "dummy")) # only needed for utility
+    secret = get_decrypted_secret(merchant.webhook_secret_enc)
+    
+    if not verify_webhook_signature(client, body_str, signature, secret):
+        raise HTTPException(status_code=400, detail="Invalid signature")
+        
+    payload = await request.json()
+    return handle_razorpay_webhook(db, payload, merchant_id)
+
