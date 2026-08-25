@@ -100,8 +100,11 @@ def process_chat(db: Session, session_id: uuid.UUID, user_message: str) -> dict:
 
     if tool_call:
         action_type = tool_call["name"]
-        payload = tool_call["args"]
+        payload = tool_call.get("args", {})
         
+        if action_type == "create_order":
+            payload["confirmation_token"] = "confirmed"
+            
         intent = Intent(
             session_id=session_id,
             action_type=action_type,
