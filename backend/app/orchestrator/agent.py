@@ -8,10 +8,12 @@ from app.guardrail.engine import evaluate
 from app.catalog.service import search_catalog
 from app.payments.service import initiate_checkout
 
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "dummy_key")
-GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
-
 def call_gemini_agent(user_message: str):
+    import os
+    # Load inside function to pick up live .env changes!
+    api_key = os.getenv("GEMINI_API_KEY", "dummy_key")
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+    
     payload = {
         "contents": [
             {"role": "user", "parts": [{"text": user_message}]}
@@ -54,7 +56,7 @@ def call_gemini_agent(user_message: str):
     }
     
     try:
-        response = requests.post(GEMINI_URL, json=payload, timeout=10)
+        response = requests.post(url, json=payload, timeout=10)
         response.raise_for_status()
         return response.json()
     except Exception as e:
@@ -90,8 +92,9 @@ def process_chat(db: Session, session_id: uuid.UUID, user_message: str) -> dict:
             tool_call = {"name": "create_order", "args": {}}
             text_content += "Creating your order!"
         else:
-            words = [w for w in text.split() if len(w) > 3 and w not in ['search', 'find', 'looking', 'show', 'some', 'want', 'need']]
-            query = words[0] if words else "lamp"
+            # Fix: allow words of length >= 3 (e.g. "cap", "hat", "pen")
+            words = [w for w in text.split() if len(w) >= 3 and w not in ['search', 'find', 'looking', 'show', 'some', 'want', 'need', 'for']]
+            query = words[0] if words else text.strip() or "lamp"
             tool_call = {"name": "search_catalog", "args": {"query": query}}
             text_content += f"Searching for {query}..."
 

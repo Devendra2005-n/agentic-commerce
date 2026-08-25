@@ -749,3 +749,5 @@ body {
 .auth-google-btn:hover {
   background: #F9FAFB;
 }
+
+.product-image { height: 120px; width: 100%; object-fit: cover; border-radius: 6px; margin-bottom: 12px; display: block; background: #F3F4F6; }

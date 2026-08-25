@@ -448,7 +448,11 @@ function App() {
                     <div className="product-carousel">
                       {m.data.map((p, pIdx) => (
                         <div className="product-card" key={pIdx}>
-                          <div className="img-placeholder">Image</div>
+                          <img 
+                            src={`https://image.pollinations.ai/prompt/product%20photography%20of%20a%20${encodeURIComponent(p.title)}?width=400&height=400&nologo=true`} 
+                            alt={p.title} 
+                            className="product-image"
+                          />
                           <h3>{p.title}</h3>
                           <p>₹{Math.floor(p.price_paise / 100)}</p>
                           <button onClick={() => handleActionMessage(`add ${p.sku} ${p.price_paise}`)}>Add</button>
