@@ -2,77 +2,103 @@ import json
 import os
 import uuid
 from sqlalchemy.orm import Session
-from openai import OpenAI
-from app.models import Intent, DecisionEnum, CartItem, CartAddedViaEnum
+import requests
+from app.models import Intent, DecisionEnum, CartItem, CartAddedViaEnum, Product
 from app.guardrail.engine import evaluate
-from app.orchestrator.tools import TOOLS
 from app.catalog.service import search_catalog
 from app.payments.service import initiate_checkout
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", "dummy_key"))
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "dummy_key")
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
 
-SYSTEM_PROMPT = """
-You are a helpful sales agent for a Razorpay merchant.
-You help humans find products, add them to their cart, and checkout.
-Never make up prices or SKUs. Always use the search_catalog tool to find real products.
-If a user wants to buy something, add it to the cart and then call create_order to generate a payment link.
-"""
+def call_gemini_agent(user_message: str):
+    payload = {
+        "contents": [
+            {"role": "user", "parts": [{"text": user_message}]}
+        ],
+        "systemInstruction": {
+            "parts": [{"text": "You are a helpful e-commerce sales agent. You help humans find products, add them to their cart, and checkout. Always use tools to take actions. If the user asks for a product, use search_catalog."}]
+        },
+        "tools": [
+            {
+                "functionDeclarations": [
+                    {
+                        "name": "search_catalog",
+                        "description": "Search the catalog for products.",
+                        "parameters": {
+                            "type": "OBJECT",
+                            "properties": {"query": {"type": "STRING"}},
+                            "required": ["query"]
+                        }
+                    },
+                    {
+                        "name": "add_to_cart",
+                        "description": "Add an item to the buyer's cart.",
+                        "parameters": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "sku": {"type": "STRING"},
+                                "qty": {"type": "INTEGER"},
+                                "price_paise": {"type": "INTEGER"}
+                            },
+                            "required": ["sku", "qty", "price_paise"]
+                        }
+                    },
+                    {
+                        "name": "create_order",
+                        "description": "Initiate checkout for the current cart, generating an order.",
+                    }
+                ]
+            }
+        ]
+    }
+    
+    try:
+        response = requests.post(GEMINI_URL, json=payload, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        print(f"Error calling Gemini REST: {e}")
+        return None
 
 def process_chat(db: Session, session_id: uuid.UUID, user_message: str) -> dict:
-    # 1. We would ideally load chat history here from a DB or memory store.
-    # For MVP, we'll send a stateless prompt + the user's current message.
+    gemini_resp = call_gemini_agent(user_message)
     
-    messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": user_message}
-    ]
+    tool_call = None
+    text_content = ""
     
-    # 2. Call LLM
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=messages,
-            tools=TOOLS,
-            tool_choice="auto"
-        )
-        msg = response.choices[0].message
-        tool_calls = msg.tool_calls
-        text_content = msg.content
-    except Exception as e:
-        # MOCK MODE: Fallback if API key is exhausted so testing isn't blocked!
-        text = user_message.lower()
-        tool_calls = []
-        text_content = f"Mock Mode (OpenAI out of credits). "
-        
-        class MockTool:
-            def __init__(self, name, args):
-                self.function = type('obj', (object,), {'name': name, 'arguments': args})
+    # Parse Gemini REST response
+    if gemini_resp and "candidates" in gemini_resp:
+        parts = gemini_resp["candidates"][0]["content"].get("parts", [])
+        for part in parts:
+            if "functionCall" in part:
+                fc = part["functionCall"]
+                tool_call = {"name": fc["name"], "args": fc.get("args", {})}
+            elif "text" in part:
+                text_content += part["text"]
                 
-        # MOCK LOGIC: We simulate LLM tool calling based on keywords
-        if text.startswith("add"):
+    if not tool_call and not text_content:
+        # Fallback keyword logic if Gemini fails or key is dummy
+        text = user_message.lower()
+        if "add" in text:
             parts = user_message.split()
             sku = parts[1] if len(parts) > 1 else "SKU-LAMP-A"
             price = int(parts[2]) if len(parts) > 2 else 89900
-            tool_calls.append(MockTool("add_to_cart", f'{{"sku": "{sku}", "qty": 1, "price_paise": {price}}}'))
+            tool_call = {"name": "add_to_cart", "args": {"sku": sku, "qty": 1, "price_paise": price}}
             text_content += f"Adding {sku} to cart."
-        elif "lamp" in text or "search" in text:
-            tool_calls.append(MockTool("search_catalog", '{"query": "lamp"}'))
-            text_content += "Searching for lamps..."
         elif "checkout" in text or "buy" in text:
-            # We add a confirmation_token to bypass the 'hard' gate for testing
-            tool_calls.append(MockTool("create_order", '{"confirmation_token": "confirmed"}'))
+            tool_call = {"name": "create_order", "args": {}}
             text_content += "Creating your order!"
         else:
-            text_content += "Try typing 'search lamp', 'add', or 'checkout'."
+            words = [w for w in text.split() if len(w) > 3 and w not in ['search', 'find', 'looking', 'show', 'some', 'want', 'need']]
+            query = words[0] if words else "lamp"
+            tool_call = {"name": "search_catalog", "args": {"query": query}}
+            text_content += f"Searching for {query}..."
 
-    
-    if tool_calls:
-        # LLM wants to take an action
-        tool_call = tool_calls[0]
-        action_type = tool_call.function.name
-        payload = json.loads(tool_call.function.arguments)
+    if tool_call:
+        action_type = tool_call["name"]
+        payload = tool_call["args"]
         
-        # 3. Create Intent and pass to Guardrail
         intent = Intent(
             session_id=session_id,
             action_type=action_type,
@@ -84,13 +110,10 @@ def process_chat(db: Session, session_id: uuid.UUID, user_message: str) -> dict:
         decision = evaluate(db, intent)
         
         if decision.decision == DecisionEnum.approved:
-            # 4. Execute the actual action if approved
             result = execute_action(db, session_id, action_type, payload)
-            
-            # 5. Report back to user
             return {
                 "role": "assistant",
-                "content": f"Action '{action_type}' was approved and executed successfully.",
+                "content": f"Action '{action_type}' executed.",
                 "action": action_type,
                 "data": result,
                 "decision": "approved"
@@ -102,24 +125,81 @@ def process_chat(db: Session, session_id: uuid.UUID, user_message: str) -> dict:
                 "decision": decision.decision.value
             }
     else:
-        # Just a text reply
         return {
             "role": "assistant",
             "content": text_content,
             "decision": None
         }
 
-from app.models import Product
+def generate_mock_products(query: str):
+    # Try Gemini to generate realistic items
+    payload = {
+        "contents": [{"parts": [{"text": f"Generate 4 realistic e-commerce products for '{query}'. Return ONLY a raw JSON array with keys: sku (string), title (string), description (string), price_paise (int, INR paise), category (string), stock_qty (int). DO NOT include markdown."}]}]
+    }
+    try:
+        res = requests.post(GEMINI_URL, json=payload, timeout=10)
+        res.raise_for_status()
+        text = res.json()['candidates'][0]['content']['parts'][0]['text'].strip()
+        if text.startswith("```json"): text = text[7:-3].strip()
+        elif text.startswith("```"): text = text[3:-3].strip()
+        
+        import random
+        products = json.loads(text)
+        for p in products:
+            p['sku'] = p['sku'] + "-" + str(random.randint(1000, 9999))
+        return products
+    except Exception as e:
+        print(f"Error calling Gemini for product generation: {e}")
+        import random
+        return [
+            {
+                "sku": f"SKU-{query.upper()[:4]}-{random.randint(100,999)}",
+                "title": f"Premium {query.title()}",
+                "description": f"A fantastic {query}.",
+                "price_paise": 150000,
+                "category": "Generated",
+                "stock_qty": 10
+            },
+            {
+                "sku": f"SKU-{query.upper()[:4]}-{random.randint(100,999)}",
+                "title": f"Basic {query.title()}",
+                "description": f"An entry-level {query}.",
+                "price_paise": 50000,
+                "category": "Generated",
+                "stock_qty": 50
+            },
+            {
+                "sku": f"SKU-{query.upper()[:4]}-{random.randint(100,999)}",
+                "title": f"Pro {query.title()}",
+                "description": f"Professional grade {query}.",
+                "price_paise": 450000,
+                "category": "Generated",
+                "stock_qty": 5
+            },
+            {
+                "sku": f"SKU-{query.upper()[:4]}-{random.randint(100,999)}",
+                "title": f"Eco {query.title()}",
+                "description": f"Eco-friendly {query}.",
+                "price_paise": 85000,
+                "category": "Generated",
+                "stock_qty": 100
+            }
+        ]
 
 def execute_action(db: Session, session_id: uuid.UUID, action_type: str, payload: dict):
     if action_type == 'search_catalog':
-        tags = payload.get('tags', [])
-        products = search_catalog(
-            db, 
-            query=payload.get('query', ''), 
-            max_price_paise=payload.get('max_price_paise'), 
-            tags=tags if isinstance(tags, list) else None
-        )
+        query = payload.get('query', '')
+        products = search_catalog(db, query=query)
+        
+        # If DB has no products for this query, generate 4 dynamic ones!
+        if len(products) == 0:
+            mock_items = generate_mock_products(query)
+            for item in mock_items:
+                new_p = Product(**item)
+                db.add(new_p)
+            db.commit()
+            products = search_catalog(db, query=query)
+            
         return [
             {
                 "sku": p.sku, 
