@@ -18,7 +18,7 @@ def seed_db():
             merchant = MerchantConfig(
                 merchant_id='demo_merchant_1',
                 display_name='Meera Home Goods',
-                max_order_paise=500000, # ₹5000
+                max_order_paise=10000000, # ₹100,000
                 max_discount_pct=10.0,
                 max_upsell_attempts=1,
                 upsell_cooldown_sec=60,
