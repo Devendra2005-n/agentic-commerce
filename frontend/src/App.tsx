@@ -33,21 +33,41 @@ const AnimatedNumber = ({ value, prefix = "" }: { value: number, prefix?: string
 
 const ProductCard = ({ p, pIdx, handleActionMessage }: { p: any, pIdx: number, handleActionMessage: (msg: string) => void }) => {
   const [imgSrc, setImgSrc] = useState<string | null>(null);
+  const [hasError, setHasError] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => {
+      // Primary: AI Generated Product Photography
       setImgSrc(`https://image.pollinations.ai/prompt/product%20photography%20of%20a%20${encodeURIComponent(p.title)}?width=400&height=400&nologo=true&seed=${p.sku || Math.floor(Math.random()*1000)}`);
-    }, pIdx * 800); // Stagger by 800ms to bypass concurrency rate limits
+    }, pIdx * 1200); // 1.2s stagger to safely bypass rate limits
     return () => clearTimeout(timer);
   }, [p.title, p.sku, pIdx]);
+
+  // Fallback: Real stock photo from Flickr if AI rate-limits
+  const getFallbackUrl = () => {
+    const keywords = p.title.split(' ').filter(w => w.length > 2).join(',');
+    return `https://loremflickr.com/400/400/${encodeURIComponent(keywords)}?lock=${pIdx + 1}`;
+  };
 
   return (
     <div className="product-card">
       {imgSrc ? (
-        <img src={imgSrc} alt={p.title} className="product-image" />
+        <img 
+          src={imgSrc} 
+          alt={p.title} 
+          className="product-image" 
+          onError={(e) => {
+            if (!hasError) {
+              setHasError(true);
+              e.currentTarget.src = getFallbackUrl();
+            } else {
+              e.currentTarget.src = `https://placehold.co/400x400/f3f4f6/9ca3af.png?text=${encodeURIComponent(p.title)}`;
+            }
+          }}
+        />
       ) : (
         <div className="product-image" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-           <span style={{color: '#9CA3AF', fontSize: '12px'}}>Generating image...</span>
+           <span style={{color: '#9CA3AF', fontSize: '12px'}}>Generating...</span>
         </div>
       )}
       <h3>{p.title}</h3>
