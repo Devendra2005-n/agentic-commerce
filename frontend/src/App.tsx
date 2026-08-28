@@ -11,21 +11,51 @@ import {
 } from 'firebase/auth'
 
 const AnimatedNumber = ({ value, prefix = "" }: { value: number, prefix?: string }) => {
-  const [displayValue, setDisplayValue] = useState(0);
+  const nodeRef = useRef<HTMLSpanElement>(null);
   
   useEffect(() => {
+    const node = nodeRef.current;
+    if (!node) return;
+    
     const controls = animate(0, value, {
-      duration: 1.5,
+      duration: 1.2,
       ease: "easeOut",
-      onUpdate(v) {
-        setDisplayValue(Math.round(v));
-      }
+      onUpdate: (v) => {
+        node.textContent = prefix + Math.floor(v).toLocaleString();
+      },
     });
-    return () => controls.stop();
-  }, [value]);
+    
+    return controls.stop;
+  }, [value, prefix]);
   
-  return <span>{prefix}{displayValue.toLocaleString()}</span>;
-}
+  return <span ref={nodeRef}>{prefix}0</span>;
+};
+
+const ProductCard = ({ p, pIdx, handleActionMessage }: { p: any, pIdx: number, handleActionMessage: (msg: string) => void }) => {
+  const [imgSrc, setImgSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setImgSrc(`https://image.pollinations.ai/prompt/product%20photography%20of%20a%20${encodeURIComponent(p.title)}?width=400&height=400&nologo=true&seed=${p.sku || Math.floor(Math.random()*1000)}`);
+    }, pIdx * 800); // Stagger by 800ms to bypass concurrency rate limits
+    return () => clearTimeout(timer);
+  }, [p.title, p.sku, pIdx]);
+
+  return (
+    <div className="product-card">
+      {imgSrc ? (
+        <img src={imgSrc} alt={p.title} className="product-image" />
+      ) : (
+        <div className="product-image" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+           <span style={{color: '#9CA3AF', fontSize: '12px'}}>Generating image...</span>
+        </div>
+      )}
+      <h3>{p.title}</h3>
+      <p>₹{Math.floor(p.price_paise / 100)}</p>
+      <button onClick={() => handleActionMessage(`add ${p.sku} ${p.price_paise}`)}>Add</button>
+    </div>
+  );
+};
 
 interface AuditEvent {
   time: string;
@@ -446,18 +476,14 @@ function App() {
                   {/* Rich Product UI */}
                   {m.action === 'search_catalog' && Array.isArray(m.data) && (
                     <div className="product-carousel">
-                      {m.data.map((p, pIdx) => (
-                        <div className="product-card" key={pIdx}>
-                          <img 
-                            src={`https://image.pollinations.ai/prompt/product%20photography%20of%20a%20${encodeURIComponent(p.title)}?width=400&height=400&nologo=true`} 
-                            alt={p.title} 
-                            className="product-image"
+                        {m.data.map((p, pIdx) => (
+                          <ProductCard 
+                            key={pIdx} 
+                            p={p} 
+                            pIdx={pIdx} 
+                            handleActionMessage={handleActionMessage} 
                           />
-                          <h3>{p.title}</h3>
-                          <p>₹{Math.floor(p.price_paise / 100)}</p>
-                          <button onClick={() => handleActionMessage(`add ${p.sku} ${p.price_paise}`)}>Add</button>
-                        </div>
-                      ))}
+                        ))}
                     </div>
                   )}
                   
