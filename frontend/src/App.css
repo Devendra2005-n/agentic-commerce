@@ -751,3 +751,17 @@ body {
 }
 
 .product-image { height: 120px; width: 100%; object-fit: cover; border-radius: 6px; margin-bottom: 12px; display: block; background: #F3F4F6; }
+
+.mic-btn { background: none; color: #9CA3AF; border: none; padding: 10px; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; }
+.mic-btn:hover { color: #3b82f6; }
+.mic-btn.listening { color: #ef4444; animation: pulse 1.5s infinite; }
+@keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.1); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }
+.send-btn { background: #111; color: white; border: none; border-radius: 8px; width: 40px; height: 40px; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+.chat-input-wrapper { display: flex; gap: 8px; padding: 16px; border-top: 1px solid #E5E7EB; background: #fff; }
+.chat-input-wrapper input { flex: 1; border: 1px solid #E5E7EB; border-radius: 8px; padding: 0 16px; font-size: 14px; outline: none; }
+.chart-container .recharts-surface { overflow: visible; }
+
+.tabs { display: flex; gap: 8px; margin-top: 4px; }
+.tabs button { background: none; border: none; color: #9CA3AF; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; }
+.tabs button:hover { background: #f3f4f6; color: #111; }
+.tabs button.active { background: #111; color: white; }

@@ -83,3 +83,44 @@ async def razorpay_webhook(merchant_id: str, request: Request, db: Session = Dep
     payload = await request.json()
     return handle_razorpay_webhook(db, payload, merchant_id)
 
+# --- ADMIN ENDPOINTS ---
+
+from app.models import Product
+
+class ConfigUpdateRequest(BaseModel):
+    max_order_paise: int
+    max_discount_pct: float
+
+@app.get("/v1/admin/config")
+def get_admin_config(db: Session = Depends(get_db)):
+    merchant = db.query(MerchantConfig).first()
+    if not merchant:
+        raise HTTPException(status_code=404, detail="No config found")
+    return {
+        "max_order_paise": merchant.max_order_paise,
+        "max_discount_pct": float(merchant.max_discount_pct)
+    }
+
+@app.post("/v1/admin/config")
+def update_admin_config(req: ConfigUpdateRequest, db: Session = Depends(get_db)):
+    merchant = db.query(MerchantConfig).first()
+    if not merchant:
+        raise HTTPException(status_code=404, detail="No config found")
+    merchant.max_order_paise = req.max_order_paise
+    merchant.max_discount_pct = req.max_discount_pct
+    db.commit()
+    return {"status": "success"}
+
+@app.get("/v1/admin/catalog")
+def get_full_catalog(db: Session = Depends(get_db)):
+    products = db.query(Product).order_by(Product.created_at.desc()).all()
+    return {"data": [
+        {
+            "sku": p.sku,
+            "title": p.title,
+            "price_paise": p.price_paise,
+            "stock_qty": p.stock_qty,
+            "category": p.category
+        } for p in products
+    ]}
+

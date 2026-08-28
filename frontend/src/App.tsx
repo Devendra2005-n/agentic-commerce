@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence, animate } from 'framer-motion'
+import { LineChart, Line, XAxis, Tooltip, ResponsiveContainer } from 'recharts'
 import './App.css'
 import { auth, googleProvider } from './firebase'
 import { 
@@ -9,6 +10,15 @@ import {
   RecaptchaVerifier,
   signInWithPhoneNumber
 } from 'firebase/auth'
+
+const chartData = [
+  { time: '10am', rev: 400 },
+  { time: '12pm', rev: 800 },
+  { time: '2pm', rev: 1200 },
+  { time: '4pm', rev: 1600 },
+  { time: '6pm', rev: 2400 },
+  { time: '8pm', rev: 3899 }
+];
 
 const AnimatedNumber = ({ value, prefix = "" }: { value: number, prefix?: string }) => {
   const nodeRef = useRef<HTMLSpanElement>(null);
@@ -80,17 +90,118 @@ const ProductCard = ({ p, pIdx, handleActionMessage }: { p: any, pIdx: number, h
 interface AuditEvent {
   time: string;
   text: string;
-  type: 'neutral' | 'action' | 'success';
+  type: 'info' | 'success' | 'warning' | 'error';
 }
 
+const InventoryTab = () => {
+  const [products, setProducts] = useState<any[]>([]);
+  
+  useEffect(() => {
+    fetch('http://localhost:8000/v1/admin/catalog')
+      .then(res => res.json())
+      .then(data => setProducts(data.data || []))
+      .catch(err => console.error(err));
+  }, []);
+
+  return (
+    <motion.div className="card" style={{ padding: '24px', margin: '20px', minHeight: '600px' }} initial={{opacity:0}} animate={{opacity:1}}>
+      <h2 style={{ fontSize: '20px', marginBottom: '20px' }}>AI Generated Inventory ({products.length})</h2>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
+        {products.map((p, i) => (
+          <div key={i} style={{ border: '1px solid #E5E7EB', borderRadius: '8px', padding: '16px' }}>
+            <h4 style={{ margin: '0 0 8px 0', fontSize: '15px' }}>{p.title}</h4>
+            <p style={{ margin: '0 0 8px 0', color: '#6B7280', fontSize: '13px' }}>SKU: {p.sku}</p>
+            <p style={{ margin: 0, fontWeight: 600 }}>₹{Math.floor(p.price_paise / 100)}</p>
+          </div>
+        ))}
+      </div>
+    </motion.div>
+  );
+};
+
+const SettingsTab = () => {
+  const [config, setConfig] = useState({ max_order_paise: 0, max_discount_pct: 0 });
+  const [saved, setSaved] = useState(false);
+  
+  useEffect(() => {
+    fetch('http://localhost:8000/v1/admin/config')
+      .then(res => res.json())
+      .then(data => setConfig(data))
+      .catch(err => console.error(err));
+  }, []);
+
+  const handleSave = () => {
+    fetch('http://localhost:8000/v1/admin/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        max_order_paise: Number(config.max_order_paise),
+        max_discount_pct: Number(config.max_discount_pct)
+      })
+    }).then(() => {
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    });
+  };
+
+  return (
+    <motion.div className="card" style={{ padding: '24px', margin: '20px', maxWidth: '600px' }} initial={{opacity:0}} animate={{opacity:1}}>
+      <h2 style={{ fontSize: '20px', marginBottom: '24px' }}>Guardrail Configuration</h2>
+      
+      <div style={{ marginBottom: '20px' }}>
+        <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>Max Order Limit (₹)</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <input 
+            type="range" 
+            min="1000" 
+            max="100000" 
+            step="1000"
+            value={Math.floor(config.max_order_paise / 100)} 
+            onChange={(e) => setConfig({...config, max_order_paise: Number(e.target.value) * 100})}
+            style={{ flex: 1 }}
+          />
+          <span style={{ fontWeight: 600, width: '80px', textAlign: 'right' }}>₹{Math.floor(config.max_order_paise / 100)}</span>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: '32px' }}>
+        <label style={{ display: 'block', marginBottom: '8px', fontWeight: 500 }}>Max Agent Discount (%)</label>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <input 
+            type="range" 
+            min="0" 
+            max="50" 
+            step="1"
+            value={config.max_discount_pct} 
+            onChange={(e) => setConfig({...config, max_discount_pct: Number(e.target.value)})}
+            style={{ flex: 1 }}
+          />
+          <span style={{ fontWeight: 600, width: '80px', textAlign: 'right' }}>{config.max_discount_pct}%</span>
+        </div>
+      </div>
+
+      <button 
+        onClick={handleSave}
+        style={{ background: saved ? '#10B981' : '#111', color: 'white', padding: '10px 20px', borderRadius: '6px', border: 'none', cursor: 'pointer', transition: 'all 0.2s' }}
+      >
+        {saved ? 'Settings Saved' : 'Apply Guardrails Now'}
+      </button>
+    </motion.div>
+  );
+};
+
 interface MessageData {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   action?: string;
   data?: any;
 }
 
 function App() {
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'settings'>('dashboard')
+  const [isListening, setIsListening] = useState(false)
+  const recognitionRef = useRef<any>(null)
+  
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [isSignUp, setIsSignUp] = useState(false)
   const [messages, setMessages] = useState<MessageData[]>([])
@@ -200,6 +311,42 @@ function App() {
     initSession()
   }, [isAuthenticated])
 
+  // Voice AI Logic
+  useEffect(() => {
+    if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
+      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = false;
+      recognitionRef.current.interimResults = false;
+      recognitionRef.current.lang = 'en-US';
+
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0][0].transcript;
+        setInput(transcript);
+        setIsListening(false);
+      };
+
+      recognitionRef.current.onerror = (event: any) => {
+        console.error('Speech recognition error', event.error);
+        setIsListening(false);
+      };
+      
+      recognitionRef.current.onend = () => {
+        setIsListening(false);
+      };
+    }
+  }, []);
+
+  const toggleListening = () => {
+    if (isListening) {
+      recognitionRef.current?.stop();
+      setIsListening(false);
+    } else {
+      recognitionRef.current?.start();
+      setIsListening(true);
+    }
+  };
+
   const handleActionMessage = async (msg: string) => {
     if (!sessionId) return;
     setMessages(prev => [...prev, { role: 'user', content: msg }]);
@@ -233,6 +380,13 @@ function App() {
         action: data.action,
         data: data.data
       }])
+      
+      if (data.data?.upsell_message) {
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: data.data.upsell_message
+        }]);
+      }
       
       if (data.decision === "approved") {
          addAuditLog(`Action approved: ${data.action || 'chat'}`, 'success');
@@ -432,7 +586,11 @@ function App() {
       >
         <div className="top-bar-left">
           <h1>Agent Overview</h1>
-          <p>Merchant Admin Dashboard</p>
+          <div className="tabs">
+            <button className={activeTab === 'dashboard' ? 'active' : ''} onClick={() => setActiveTab('dashboard')}>Dashboard</button>
+            <button className={activeTab === 'inventory' ? 'active' : ''} onClick={() => setActiveTab('inventory')}>Inventory</button>
+            <button className={activeTab === 'settings' ? 'active' : ''} onClick={() => setActiveTab('settings')}>Guardrails</button>
+          </div>
         </div>
         <div className="top-bar-right">
           <button className="icon-btn">
@@ -445,141 +603,174 @@ function App() {
         </div>
       </motion.div>
 
-      {/* Main Grid */}
-      <motion.div 
-        className="main-grid"
-        variants={containerVariants}
-        initial="hidden"
-        animate="show"
-      >
-        
-        {/* LEFT: Ledger */}
-        <motion.div className="card" variants={itemVariants}>
-          <div className="card-header">
-            <h2><span className="dot"></span> Today's Ledger</h2>
-          </div>
-          <div className="ledger-stats">
-            <div className="stat-row">
-              <span>Sessions</span>
-              <div className="stat-value"><AnimatedNumber value={sessionsCount} /></div>
+      {/* Dashboard View */}
+      {activeTab === 'dashboard' && (
+        <motion.div 
+          className="main-grid"
+          variants={containerVariants}
+          initial="hidden"
+          animate="show"
+        >
+          {/* ... ledger, chat, audit log ... */}
+          {/* LEFT: Ledger */}
+          <motion.div className="card" variants={itemVariants}>
+            <div className="card-header">
+              <h2><span className="dot"></span> Today's Ledger</h2>
             </div>
-            <div className="stat-row">
-              <span>Orders</span>
-              <div className="stat-value"><AnimatedNumber value={ordersCount} /></div>
+            <div className="ledger-stats">
+              <div className="stat-row">
+                <span>Sessions</span>
+                <div className="stat-value"><AnimatedNumber value={sessionsCount} /></div>
+              </div>
+              <div className="stat-row">
+                <span>Orders</span>
+                <div className="stat-value"><AnimatedNumber value={ordersCount} /></div>
+              </div>
+              <div className="stat-row">
+                <span>Upsells</span>
+                <div className="stat-value" style={{color: '#10B981'}}>+₹<AnimatedNumber value={2400} /></div>
+              </div>
+              <div className="revenue-box">
+                <span>Revenue</span>
+                <div className="rev-amount"><AnimatedNumber value={revenue} prefix="₹" /></div>
+              </div>
             </div>
-            <div className="revenue-box">
-              <span>Revenue</span>
-              <div className="rev-amount"><AnimatedNumber value={revenue} prefix="₹" /></div>
+            
+            <div className="chart-container" style={{ height: '180px', marginTop: '20px' }}>
+              <h4 style={{ fontSize: '12px', color: '#9CA3AF', marginBottom: '10px', textTransform: 'uppercase' }}>Revenue 24H</h4>
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={chartData}>
+                  <XAxis dataKey="time" stroke="#9CA3AF" fontSize={10} tickLine={false} axisLine={false} />
+                  <Tooltip 
+                    contentStyle={{ background: '#111', border: 'none', borderRadius: '4px', color: '#fff', fontSize: '12px' }}
+                    itemStyle={{ color: '#fff' }}
+                  />
+                  <Line type="monotone" dataKey="rev" stroke="#3b82f6" strokeWidth={3} dot={false} activeDot={{ r: 6 }} />
+                </LineChart>
+              </ResponsiveContainer>
             </div>
-          </div>
-        </motion.div>
+          </motion.div>
 
-        {/* CENTER: Chat */}
-        <motion.div className="card chat-card" variants={itemVariants}>
-          <div className="card-header">
-            <h2>Meera's Store Agent</h2>
-          </div>
-          <div className="chat-messages">
-            <AnimatePresence initial={false}>
-              {messages.map((m, i) => (
-                <motion.div 
-                  key={i} 
-                  className="message-container"
-                  initial={{ opacity: 0, y: 15, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
-                >
-                  <div className={`message ${m.role}`}>
-                    {m.content}
-                  </div>
-                  
-                  {/* Rich Product UI */}
-                  {m.action === 'search_catalog' && Array.isArray(m.data) && (
-                    <div className="product-carousel">
-                        {m.data.map((p, pIdx) => (
-                          <ProductCard 
-                            key={pIdx} 
-                            p={p} 
-                            pIdx={pIdx} 
-                            handleActionMessage={handleActionMessage} 
-                          />
-                        ))}
+          {/* CENTER: Chat */}
+          <motion.div className="card chat-card" variants={itemVariants}>
+            <div className="card-header">
+              <h2>Meera's Store Agent</h2>
+            </div>
+            <div className="chat-messages">
+              <AnimatePresence initial={false}>
+                {messages.map((m, i) => (
+                  <motion.div 
+                    key={i} 
+                    className="message-container"
+                    initial={{ opacity: 0, y: 15, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                  >
+                    <div className={`message ${m.role}`}>
+                      {m.content}
                     </div>
-                  )}
-                  
-                  {/* Rich Cart UI */}
-                  {m.action === 'add_to_cart' && m.data && m.data.items && (
-                    <motion.div 
-                      className="cart-card"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.2 }}
-                    >
-                      <h3>Confirm your order</h3>
-                      {m.data.items.map((item: any, cIdx: number) => (
-                        <div className="cart-item" key={cIdx}>
-                          <span>{item.qty}× {item.title}</span>
-                          <span>₹{Math.floor(item.price_paise / 100)}</span>
-                        </div>
-                      ))}
-                      <div className="cart-total">
-                        <span>Total</span>
-                        <span>₹{Math.floor(m.data.total_paise / 100)}</span>
+                    
+                    {/* Rich Product UI */}
+                    {m.action === 'search_catalog' && Array.isArray(m.data) && (
+                      <div className="product-carousel">
+                          {m.data.map((p, pIdx) => (
+                            <ProductCard 
+                              key={pIdx} 
+                              p={p} 
+                              pIdx={pIdx} 
+                              handleActionMessage={handleActionMessage} 
+                            />
+                          ))}
                       </div>
-                      <button onClick={() => handleActionMessage(`checkout`)}>
-                        Confirm & Pay 
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-                      </button>
-                    </motion.div>
-                  )}
-                  
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-          <div className="chat-input-wrapper">
-            <input 
-              value={input} 
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && sendMessage()}
-              placeholder="Type a message..." 
-            />
-            <button onClick={sendMessage}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-            </button>
-          </div>
-        </motion.div>
-
-        {/* RIGHT: Audit Log */}
-        <motion.div className="card" variants={itemVariants}>
-          <div className="card-header">
-            <div className="audit-header-content">
-              <h2>Audit Log</h2>
-              <div className="session-badge">{sessionId ? `sess_${sessionId.substring(0,4)}` : ''}</div>
+                    )}
+                    
+                    {/* Rich Cart UI */}
+                    {m.action === 'add_to_cart' && m.data && m.data.items && (
+                      <motion.div 
+                        className="cart-card"
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.2 }}
+                      >
+                        <h3>Confirm your order</h3>
+                        {m.data.items.map((item: any, cIdx: number) => (
+                          <div className="cart-item" key={cIdx}>
+                            <span>{item.qty}× {item.title}</span>
+                            <span>₹{Math.floor(item.price_paise / 100)}</span>
+                          </div>
+                        ))}
+                        <div className="cart-total">
+                          <span>Total</span>
+                          <span>₹{Math.floor(m.data.total_paise / 100)}</span>
+                        </div>
+                        <button onClick={() => handleActionMessage(`checkout`)}>
+                          Confirm & Pay 
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+                        </button>
+                      </motion.div>
+                    )}
+                    
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
-          </div>
-          <div className="audit-timeline">
-            <AnimatePresence initial={false}>
-              {auditLogs.map((log, index) => (
-                <motion.div 
-                  className="timeline-item" 
-                  key={index}
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.4, ease: "easeOut" }}
-                >
-                  <div className={`timeline-dot ${log.type}`}></div>
-                  <div className="timeline-content">
-                    <div className="timeline-time">{log.time}</div>
-                    <div className="timeline-text">{log.text}</div>
-                  </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          </div>
-        </motion.div>
+            <div className="chat-input-wrapper">
+              <input 
+                value={input} 
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && sendMessage()}
+                placeholder={isListening ? "Listening..." : "Type a message..."}
+              />
+              <button className={`mic-btn ${isListening ? 'listening' : ''}`} onClick={toggleListening} title="Voice Command">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                  <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                  <line x1="12" y1="19" x2="12" y2="22"></line>
+                </svg>
+              </button>
+              <button onClick={sendMessage} className="send-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+              </button>
+            </div>
+          </motion.div>
 
-      </motion.div>
+          {/* RIGHT: Audit Log */}
+          <motion.div className="card" variants={itemVariants}>
+            <div className="card-header">
+              <div className="audit-header-content">
+                <h2>Audit Log</h2>
+                <div className="session-badge">{sessionId ? `sess_${sessionId.substring(0,4)}` : ''}</div>
+              </div>
+            </div>
+            <div className="audit-timeline">
+              <AnimatePresence initial={false}>
+                {auditLogs.map((log, index) => (
+                  <motion.div 
+                    className="timeline-item" 
+                    key={index}
+                    initial={{ opacity: 0, x: 20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.4, ease: "easeOut" }}
+                  >
+                    <div className={`timeline-dot ${log.type}`}></div>
+                    <div className="timeline-content">
+                      <div className="timeline-time">{log.time}</div>
+                      <div className="timeline-text">{log.text}</div>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
+            </div>
+          </motion.div>
+
+        </motion.div>
+      )}
+
+      {/* Inventory View */}
+      {activeTab === 'inventory' && <InventoryTab />}
+
+      {/* Settings View */}
+      {activeTab === 'settings' && <SettingsTab />}
     </div>
   )
 }

@@ -228,13 +228,24 @@ def execute_action(db: Session, session_id: uuid.UUID, action_type: str, payload
         items = db.query(CartItem).filter(CartItem.session_id == session_id, CartItem.removed_at == None).all()
         result_items = []
         total = 0
+        added_product_title = payload['sku']
+        
         for item in items:
             product = db.query(Product).filter(Product.sku == item.sku).first()
             title = product.title if product else item.sku
+            if item.sku == payload['sku']:
+                added_product_title = title
             result_items.append({"title": title, "qty": item.qty, "price_paise": item.price_at_add_paise})
             total += item.price_at_add_paise * item.qty
             
-        return {"items": result_items, "total_paise": total}
+        # 🧠 Smart Upsell Logic
+        upsell_msg = None
+        words = added_product_title.split()
+        if len(words) > 0:
+            core_noun = words[-1]
+            upsell_msg = f"Great choice! I found some Premium {core_noun} Accessories that match perfectly. Want me to add them for a 10% discount?"
+            
+        return {"items": result_items, "total_paise": total, "upsell_message": upsell_msg}
     elif action_type == 'create_order':
         return initiate_checkout(db, session_id)
     return {"status": "unknown_action"}
