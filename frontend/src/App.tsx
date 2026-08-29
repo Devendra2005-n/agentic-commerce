@@ -8,7 +8,10 @@ import {
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
   RecaptchaVerifier,
-  signInWithPhoneNumber
+  signInWithPhoneNumber,
+  signInWithRedirect,
+  getRedirectResult,
+  onAuthStateChanged
 } from 'firebase/auth'
 
 const chartData = [
@@ -90,7 +93,7 @@ const ProductCard = ({ p, pIdx, handleActionMessage }: { p: any, pIdx: number, h
 interface AuditEvent {
   time: string;
   text: string;
-  type: 'info' | 'success' | 'warning' | 'error';
+  type: 'info' | 'success' | 'warning' | 'error' | 'neutral' | 'action';
 }
 
 const InventoryTab = () => {
@@ -249,12 +252,21 @@ function App() {
   const [ordersCount, setOrdersCount] = useState(() => parseInt(localStorage.getItem('ordersCount') || '7'))
   const [revenue, setRevenue] = useState(() => parseInt(localStorage.getItem('revenue') || '8940'))
   
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setIsAuthenticated(true);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   // Abandoned Cart State
   const [cartHasItems, setCartHasItems] = useState(false);
   const [abandonedCartTriggered, setAbandonedCartTriggered] = useState(false);
 
   useEffect(() => {
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
     if (isAuthenticated && sessionId && cartHasItems && !abandonedCartTriggered) {
       timeoutId = setTimeout(() => {
         setAbandonedCartTriggered(true);
@@ -277,8 +289,7 @@ function App() {
   const handleGoogleSignIn = async () => {
     try {
       setAuthError('')
-      await signInWithPopup(auth, googleProvider)
-      setIsAuthenticated(true)
+      await signInWithRedirect(auth, googleProvider)
     } catch (e: any) {
       setAuthError(e.message)
     }
@@ -331,11 +342,20 @@ function App() {
 
   // Session Init
   useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        setIsAuthenticated(true);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
     if (!isAuthenticated) return;
     
     async function initSession() {
       try {
-        const res = await fetch('http://localhost:8000/v1/sessions', { method: 'POST' })
+        const res = await fetch('http://127.0.0.1:8000/v1/sessions', { method: 'POST' })
         const data = await res.json()
         setSessionId(data.session_id)
         
@@ -473,10 +493,12 @@ function App() {
     await executeChat(msg, currentImg || undefined);
   }
   
-  async function executeChat(messageText: string, imageBase64Str?: string) {
+  async function executeChat(messageText: string, imageBase64Str?: string, sid?: string) {
+    const activeSession = sid || sessionId;
+    if (!activeSession) return;
     setIsThinking(true);
     try {
-      const res = await fetch(`http://localhost:8000/v1/chat/${sessionId}`, {
+      const res = await fetch(`http://127.0.0.1:8000/v1/chat/${activeSession}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: messageText, image_base64: imageBase64Str })
