@@ -360,6 +360,11 @@ function App() {
 
       recognitionRef.current.onerror = (event: any) => {
         console.error('Speech recognition error', event.error);
+        if (event.error === 'not-allowed') {
+          alert("Microphone access was denied! Please allow microphone access in your browser URL bar settings and try again.");
+        } else if (event.error !== 'no-speech') {
+          alert("Microphone error: " + event.error);
+        }
         setIsListening(false);
       };
       
@@ -370,12 +375,27 @@ function App() {
   }, []);
 
   const toggleListening = () => {
+    if (!recognitionRef.current) {
+      alert("Microphone is not supported in this browser, or you are not using a Secure Context (HTTPS/localhost). Please use Google Chrome.");
+      return;
+    }
+    
     if (isListening) {
-      recognitionRef.current?.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {
+        console.error(e);
+      }
       setIsListening(false);
     } else {
-      recognitionRef.current?.start();
-      setIsListening(true);
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (e: any) {
+        console.error(e);
+        alert("Failed to start microphone: " + e.message + "\n\nPlease ensure you have granted microphone permissions.");
+        setIsListening(false);
+      }
     }
   };
 
