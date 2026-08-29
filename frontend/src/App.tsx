@@ -329,7 +329,7 @@ function App() {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = true; // Show results as they speak
+      recognitionRef.current.interimResults = false; // Disable interim to prevent 'network' API overload
       recognitionRef.current.lang = 'en-US';
 
       recognitionRef.current.onresult = (event: any) => {
