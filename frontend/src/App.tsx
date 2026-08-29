@@ -396,7 +396,7 @@ function App() {
     await executeChat(msg);
   }
   
-  const executeChat = async (messageText: string) => {
+  async function executeChat(messageText: string) {
     try {
       const res = await fetch(`http://localhost:8000/v1/chat/${sessionId}`, {
         method: 'POST',
