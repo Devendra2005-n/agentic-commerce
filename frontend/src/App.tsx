@@ -311,6 +311,19 @@ function App() {
     initSession()
   }, [isAuthenticated])
 
+  const [transcript, setTranscript] = useState('')
+
+  // Auto-send transcribed voice using a separate effect to avoid closure staleness on sessionId
+  useEffect(() => {
+    if (transcript && sessionId) {
+      const msg = transcript;
+      setTranscript(''); // clear immediately
+      setMessages(prev => [...prev, { role: 'user', content: msg }]);
+      addAuditLog(`User voice message received`, 'action');
+      executeChat(msg);
+    }
+  }, [transcript, sessionId]);
+
   // Voice AI Logic
   useEffect(() => {
     if (typeof window !== 'undefined' && ('SpeechRecognition' in window || 'webkitSpeechRecognition' in window)) {
@@ -321,8 +334,8 @@ function App() {
       recognitionRef.current.lang = 'en-US';
 
       recognitionRef.current.onresult = (event: any) => {
-        const transcript = event.results[0][0].transcript;
-        setInput(transcript);
+        const text = event.results[0][0].transcript;
+        setTranscript(text);
         setIsListening(false);
       };
 
