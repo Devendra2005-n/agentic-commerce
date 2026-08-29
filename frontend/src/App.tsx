@@ -318,6 +318,7 @@ function App() {
     if (transcript && sessionId) {
       const msg = transcript;
       setTranscript(''); // clear immediately
+      setInput(''); // Clear the chat box
       setMessages(prev => [...prev, { role: 'user', content: msg }]);
       addAuditLog(`User voice message received`, 'action');
       executeChat(msg);
@@ -330,13 +331,26 @@ function App() {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = false;
+      recognitionRef.current.interimResults = true; // Show results as they speak
       recognitionRef.current.lang = 'en-US';
 
       recognitionRef.current.onresult = (event: any) => {
-        const text = event.results[0][0].transcript;
-        setTranscript(text);
-        setIsListening(false);
+        let currentTranscript = '';
+        let isFinal = false;
+
+        for (let i = 0; i < event.results.length; i++) {
+          currentTranscript += event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            isFinal = true;
+          }
+        }
+        
+        setInput(currentTranscript); // Type it in the chat box
+
+        if (isFinal) {
+           setTranscript(currentTranscript); // Trigger auto-send
+           setIsListening(false);
+        }
       };
 
       recognitionRef.current.onerror = (event: any) => {
