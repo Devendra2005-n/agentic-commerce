@@ -762,7 +762,7 @@ body {
 .chat-input-wrapper input { flex: 1; border: 1px solid #E5E7EB; border-radius: 8px; padding: 0 16px; font-size: 14px; outline: none; }
 .chart-container .recharts-surface { overflow: visible; }
 
-.tabs { display: flex; gap: 8px; margin-top: 4px; }
+.tabs { display: flex; gap: 8px; margin-top: 12px; }
 .tabs button { background: none; border: none; color: #9CA3AF; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; }
 .tabs button:hover { background: #f3f4f6; color: #111; }
 .tabs button.active { background: #111; color: white; }
