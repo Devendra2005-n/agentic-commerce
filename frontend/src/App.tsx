@@ -692,10 +692,10 @@ function App() {
               </div>
             </div>
             
-            <div className="chart-container" style={{ height: '180px', marginTop: '20px' }}>
+            <div className="chart-container" style={{ height: '180px', marginTop: '10px', padding: '0 24px', marginBottom: '30px' }}>
               <h4 style={{ fontSize: '12px', color: '#9CA3AF', marginBottom: '10px', textTransform: 'uppercase' }}>Revenue 24H</h4>
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData}>
+                <LineChart data={chartData} margin={{ top: 5, right: 15, left: 15, bottom: 5 }}>
                   <XAxis dataKey="time" stroke="#9CA3AF" fontSize={10} tickLine={false} axisLine={false} />
                   <Tooltip 
                     contentStyle={{ background: '#111', border: 'none', borderRadius: '4px', color: '#fff', fontSize: '12px' }}
