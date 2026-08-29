@@ -206,6 +206,7 @@ function App() {
   const [isSignUp, setIsSignUp] = useState(false)
   const [messages, setMessages] = useState<MessageData[]>([])
   const [input, setInput] = useState('')
+  const [isThinking, setIsThinking] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [auditLogs, setAuditLogs] = useState<AuditEvent[]>([])
   
@@ -329,7 +330,7 @@ function App() {
       const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
       recognitionRef.current = new SpeechRecognition();
       recognitionRef.current.continuous = false;
-      recognitionRef.current.interimResults = false; // Disable interim to prevent 'network' API overload
+      recognitionRef.current.interimResults = true; // Show results as they speak for real-time speed
       recognitionRef.current.lang = 'en-US';
 
       recognitionRef.current.onresult = (event: any) => {
@@ -417,6 +418,7 @@ function App() {
   }
   
   async function executeChat(messageText: string) {
+    setIsThinking(true);
     try {
       const res = await fetch(`http://localhost:8000/v1/chat/${sessionId}`, {
         method: 'POST',
@@ -480,6 +482,8 @@ function App() {
     } catch (e) {
       setMessages(prev => [...prev, {role: 'assistant', content: 'Error communicating with server.'}])
       addAuditLog(`Error communicating with API`, 'neutral');
+    } finally {
+      setIsThinking(false);
     }
   }
 
@@ -771,7 +775,8 @@ function App() {
                 value={input} 
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && sendMessage()}
-                placeholder={isListening ? "Listening..." : "Type a message..."}
+                placeholder={isListening ? "Listening..." : (isThinking ? "Thinking..." : "Type a message...")}
+                disabled={isThinking}
               />
               <button className={`mic-btn ${isListening ? 'listening' : ''}`} onClick={toggleListening} title="Voice Command">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
