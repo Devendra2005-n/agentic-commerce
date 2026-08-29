@@ -241,6 +241,26 @@ body {
   gap: 12px;
 }
 
+.attach-btn, .mic-btn, .send-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.attach-btn {
+  background: #F3F4F6;
+}
+
+.attach-btn:hover {
+  background: #E5E7EB;
+}
+
 .chat-input-wrapper input {
   flex: 1;
   background: #F3F4F6;

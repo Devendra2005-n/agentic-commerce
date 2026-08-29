@@ -180,6 +180,27 @@ const SettingsTab = () => {
         </div>
       </div>
 
+      <div style={{ marginBottom: '32px' }}>
+        <h3 style={{ fontSize: '16px', marginBottom: '12px', borderTop: '1px solid #E5E7EB', paddingTop: '24px' }}>Omnichannel Agent (Twilio Integration)</h3>
+        <p style={{ fontSize: '13px', color: '#6B7280', marginBottom: '12px' }}>
+          Connect your AI Agent to SMS and WhatsApp. Paste this webhook URL into your Twilio console:
+        </p>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <input 
+            type="text" 
+            readOnly 
+            value="https://your-domain.com/v1/twilio/webhook" 
+            style={{ flex: 1, padding: '8px 12px', borderRadius: '6px', border: '1px solid #E5E7EB', background: '#F9FAFB', fontSize: '13px', color: '#6B7280' }} 
+          />
+          <button 
+            onClick={() => { navigator.clipboard.writeText("https://your-domain.com/v1/twilio/webhook"); alert("Copied!"); }}
+            style={{ background: '#F3F4F6', color: '#111', padding: '8px 16px', borderRadius: '6px', border: '1px solid #E5E7EB', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }}
+          >
+            Copy
+          </button>
+        </div>
+      </div>
+
       <button 
         onClick={handleSave}
         style={{ background: saved ? '#10B981' : '#111', color: 'white', padding: '10px 20px', borderRadius: '6px', border: 'none', cursor: 'pointer', transition: 'all 0.2s' }}
@@ -207,6 +228,9 @@ function App() {
   const [messages, setMessages] = useState<MessageData[]>([])
   const [input, setInput] = useState('')
   const [isThinking, setIsThinking] = useState(false)
+  const [imageFile, setImageFile] = useState<File | null>(null)
+  const [imageBase64, setImageBase64] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [auditLogs, setAuditLogs] = useState<AuditEvent[]>([])
   
@@ -224,6 +248,21 @@ function App() {
   const [sessionsCount, setSessionsCount] = useState(() => parseInt(localStorage.getItem('sessionsCount') || '12'))
   const [ordersCount, setOrdersCount] = useState(() => parseInt(localStorage.getItem('ordersCount') || '7'))
   const [revenue, setRevenue] = useState(() => parseInt(localStorage.getItem('revenue') || '8940'))
+  
+  // Abandoned Cart State
+  const [cartHasItems, setCartHasItems] = useState(false);
+  const [abandonedCartTriggered, setAbandonedCartTriggered] = useState(false);
+
+  useEffect(() => {
+    let timeoutId: NodeJS.Timeout;
+    if (isAuthenticated && sessionId && cartHasItems && !abandonedCartTriggered) {
+      timeoutId = setTimeout(() => {
+        setAbandonedCartTriggered(true);
+        executeChat("[SYSTEM_EVENT: User is inactive. They abandoned the cart. Send a proactive message to close the sale]");
+      }, 60000);
+    }
+    return () => clearTimeout(timeoutId);
+  }, [messages, isAuthenticated, sessionId, cartHasItems, abandonedCartTriggered]);
 
   useEffect(() => { localStorage.setItem('sessionsCount', sessionsCount.toString()); }, [sessionsCount]);
   useEffect(() => { localStorage.setItem('ordersCount', ordersCount.toString()); }, [ordersCount]);
@@ -400,6 +439,18 @@ function App() {
     }
   };
 
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setImageFile(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImageBase64(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const handleActionMessage = async (msg: string) => {
     if (!sessionId) return;
     setMessages(prev => [...prev, { role: 'user', content: msg }]);
@@ -408,22 +459,27 @@ function App() {
   }
 
   const sendMessage = async () => {
-    if (!input.trim() || !sessionId) return;
+    if (!input.trim() && !imageBase64) return;
+    if (!sessionId) return;
     const msg = input;
-    setInput('')
+    const currentImg = imageBase64;
     
-    setMessages(prev => [...prev, { role: 'user', content: msg }])
+    setInput('')
+    setImageFile(null)
+    setImageBase64(null)
+    
+    setMessages(prev => [...prev, { role: 'user', content: currentImg ? `[Attached Image] ${msg}` : msg }])
     addAuditLog(`User message received`, 'action');
-    await executeChat(msg);
+    await executeChat(msg, currentImg || undefined);
   }
   
-  async function executeChat(messageText: string) {
+  async function executeChat(messageText: string, imageBase64Str?: string) {
     setIsThinking(true);
     try {
       const res = await fetch(`http://localhost:8000/v1/chat/${sessionId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: messageText })
+        body: JSON.stringify({ message: messageText, image_base64: imageBase64Str })
       })
       
       const data = await res.json()
@@ -444,6 +500,12 @@ function App() {
       
       if (data.decision === "approved") {
          addAuditLog(`Action approved: ${data.action || 'chat'}`, 'success');
+         if (data.action === 'add_to_cart') {
+             setCartHasItems(true);
+             setAbandonedCartTriggered(false); // Reset trigger if they add again
+         } else if (data.action === 'create_order') {
+             setCartHasItems(false);
+         }
       } else if (data.decision === "gated_pending") {
          addAuditLog(`Action gated (pending confirmation)`, 'neutral');
       }
@@ -770,12 +832,33 @@ function App() {
                 ))}
               </AnimatePresence>
             </div>
+            {imageBase64 && (
+              <div style={{ padding: '0 24px', position: 'relative' }}>
+                <img src={imageBase64} style={{ height: '60px', borderRadius: '8px', border: '1px solid #E5E7EB' }} />
+                <button 
+                  onClick={() => { setImageFile(null); setImageBase64(null); }}
+                  style={{ position: 'absolute', top: '-8px', left: '16px', background: 'white', border: '1px solid #E5E7EB', borderRadius: '50%', width: '20px', height: '20px', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'red' }}
+                >
+                  ×
+                </button>
+              </div>
+            )}
             <div className="chat-input-wrapper">
+              <input 
+                type="file"
+                accept="image/*"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                onChange={handleImageUpload}
+              />
+              <button className="attach-btn" onClick={() => fileInputRef.current?.click()} title="Upload Image">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              </button>
               <input 
                 value={input} 
                 onChange={e => setInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && sendMessage()}
-                placeholder={isListening ? "Listening..." : (isThinking ? "Thinking..." : "Type a message...")}
+                placeholder={isListening ? "Listening..." : (isThinking ? "Thinking..." : "Type a message or upload image...")}
                 disabled={isThinking}
               />
               <button className={`mic-btn ${isListening ? 'listening' : ''}`} onClick={toggleListening} title="Voice Command">

@@ -108,6 +108,7 @@ class Session(Base):
     agent_token_id = Column(Text, ForeignKey('agent_tokens.token_id'))
     buyer_ref = Column(Text)
     status = Column(Enum(SessionStatusEnum, name='session_status_enum'), nullable=False, default=SessionStatusEnum.active)
+    agent_mode = Column(Text, nullable=False, default="sales")
     started_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     last_active_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     

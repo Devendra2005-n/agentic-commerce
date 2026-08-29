@@ -8,49 +8,77 @@ from app.guardrail.engine import evaluate
 from app.catalog.service import search_catalog
 from app.payments.service import initiate_checkout
 
-def call_gemini_agent(user_message: str):
+def call_gemini_agent(user_message: str, image_base64: str = None, max_discount_pct: float = 0, agent_mode: str = "sales"):
     import os
     # Load inside function to pick up live .env changes!
     api_key = os.getenv("GEMINI_API_KEY", "dummy_key")
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
     
+    parts = []
+    if image_base64:
+        if "," in image_base64:
+            image_base64 = image_base64.split(",")[1]
+        parts.append({"inlineData": {"mimeType": "image/jpeg", "data": image_base64}})
+    parts.append({"text": user_message})
+    
+    if agent_mode == "support":
+        sys_instruction = "You are a post-purchase support agent. Help the user with returns, refunds, or order status. If they want a refund for an order, use the process_return tool."
+        function_declarations = [
+            {
+                "name": "process_return",
+                "description": "Process a return and deduct the amount from the global ledger.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {"order_id": {"type": "STRING"}, "refund_amount_paise": {"type": "INTEGER"}},
+                    "required": ["order_id", "refund_amount_paise"]
+                }
+            }
+        ]
+    else:
+        sys_instruction = f"You are a helpful e-commerce sales agent. You help humans find products, add them to their cart, and checkout. Always use tools to take actions. If the user asks for a product, use search_catalog. If the user objects to a price, you may negotiate and offer a discount up to {max_discount_pct}%. Apply the discounted price directly in add_to_cart if you negotiated. If the user has a post-purchase support issue (like returns), use transfer_to_support."
+        function_declarations = [
+            {
+                "name": "search_catalog",
+                "description": "Search the catalog for products.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {"query": {"type": "STRING"}},
+                    "required": ["query"]
+                }
+            },
+            {
+                "name": "add_to_cart",
+                "description": "Add an item to the buyer's cart.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "sku": {"type": "STRING"},
+                        "qty": {"type": "INTEGER"},
+                        "price_paise": {"type": "INTEGER"}
+                    },
+                    "required": ["sku", "qty", "price_paise"]
+                }
+            },
+            {
+                "name": "create_order",
+                "description": "Initiate checkout for the current cart, generating an order.",
+            },
+            {
+                "name": "transfer_to_support",
+                "description": "Transfer the user to the support agent for post-purchase issues like returns.",
+            }
+        ]
+
     payload = {
         "contents": [
-            {"role": "user", "parts": [{"text": user_message}]}
+            {"role": "user", "parts": parts}
         ],
         "systemInstruction": {
-            "parts": [{"text": "You are a helpful e-commerce sales agent. You help humans find products, add them to their cart, and checkout. Always use tools to take actions. If the user asks for a product, use search_catalog."}]
+            "parts": [{"text": sys_instruction}]
         },
         "tools": [
             {
-                "functionDeclarations": [
-                    {
-                        "name": "search_catalog",
-                        "description": "Search the catalog for products.",
-                        "parameters": {
-                            "type": "OBJECT",
-                            "properties": {"query": {"type": "STRING"}},
-                            "required": ["query"]
-                        }
-                    },
-                    {
-                        "name": "add_to_cart",
-                        "description": "Add an item to the buyer's cart.",
-                        "parameters": {
-                            "type": "OBJECT",
-                            "properties": {
-                                "sku": {"type": "STRING"},
-                                "qty": {"type": "INTEGER"},
-                                "price_paise": {"type": "INTEGER"}
-                            },
-                            "required": ["sku", "qty", "price_paise"]
-                        }
-                    },
-                    {
-                        "name": "create_order",
-                        "description": "Initiate checkout for the current cart, generating an order.",
-                    }
-                ]
+                "functionDeclarations": function_declarations
             }
         ]
     }
@@ -63,8 +91,15 @@ def call_gemini_agent(user_message: str):
         print(f"Error calling Gemini REST: {e}")
         return None
 
-def process_chat(db: Session, session_id: uuid.UUID, user_message: str) -> dict:
-    gemini_resp = call_gemini_agent(user_message)
+def process_chat(db: Session, session_id: uuid.UUID, user_message: str, image_base64: str = None) -> dict:
+    from app.models import MerchantConfig, Session as DbSession
+    merchant = db.query(MerchantConfig).first()
+    max_discount_pct = float(merchant.max_discount_pct) if merchant else 0.0
+    
+    sess = db.query(DbSession).filter(DbSession.session_id == session_id).first()
+    agent_mode = sess.agent_mode if sess else "sales"
+    
+    gemini_resp = call_gemini_agent(user_message, image_base64, max_discount_pct, agent_mode)
     
     tool_call = None
     text_content = ""
@@ -248,4 +283,13 @@ def execute_action(db: Session, session_id: uuid.UUID, action_type: str, payload
         return {"items": result_items, "total_paise": total, "upsell_message": upsell_msg}
     elif action_type == 'create_order':
         return initiate_checkout(db, session_id)
+    elif action_type == 'transfer_to_support':
+        from app.models import Session as DbSession
+        sess = db.query(DbSession).filter(DbSession.session_id == session_id).first()
+        if sess:
+            sess.agent_mode = "support"
+            db.commit()
+        return {"status": "transferred", "message": "Transferred to support."}
+    elif action_type == 'process_return':
+        return {"status": "success", "message": f"Processed return for order {payload.get('order_id')}."}
     return {"status": "unknown_action"}

@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, Request, HTTPException
+from fastapi import FastAPI, Depends, Request, HTTPException, Form, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import uuid
@@ -12,8 +12,11 @@ from app.payments.razorpay_client import verify_webhook_signature, get_decrypted
 from app.models import MerchantConfig
 from app.orchestrator.agent import process_chat
 
+from typing import Optional
+
 class ChatRequest(BaseModel):
     message: str
+    image_base64: Optional[str] = None
 
 app = FastAPI(title="Growth & Trust Agent API")
 
@@ -58,7 +61,7 @@ def checkout(session_id: uuid.UUID, db: Session = Depends(get_db)):
 
 @app.post("/v1/chat/{session_id}")
 def chat(session_id: uuid.UUID, req: ChatRequest, db: Session = Depends(get_db)):
-    return process_chat(db, session_id, req.message)
+    return process_chat(db, session_id, req.message, req.image_base64)
 
 @app.post("/v1/webhooks/razorpay/{merchant_id}")
 async def razorpay_webhook(merchant_id: str, request: Request, db: Session = Depends(get_db)):
@@ -123,4 +126,32 @@ def get_full_catalog(db: Session = Depends(get_db)):
             "category": p.category
         } for p in products
     ]}
+
+@app.post("/v1/twilio/webhook")
+async def twilio_webhook(
+    From: str = Form(...),
+    Body: str = Form(...),
+    db: Session = Depends(get_db)
+):
+    from app.models import MerchantConfig, Session as DbSession, ActorTypeEnum
+    merchant = db.query(MerchantConfig).first()
+    
+    sess = db.query(DbSession).filter(DbSession.buyer_ref == From, DbSession.status == 'active').first()
+    if not sess:
+        sess = DbSession(merchant_id=merchant.merchant_id, actor_type=ActorTypeEnum.human, buyer_ref=From)
+        db.add(sess)
+        db.commit()
+        db.refresh(sess)
+        
+    result = process_chat(db, sess.session_id, Body)
+    agent_msg = result.get('content', "I didn't quite get that.")
+    
+    if result.get('data') and 'payment_link_url' in result['data']:
+        agent_msg += f"\nPay here: {result['data']['payment_link_url']}"
+        
+    twiml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Message>{agent_msg}</Message>
+</Response>"""
+    return Response(content=twiml_response, media_type="application/xml")
 
