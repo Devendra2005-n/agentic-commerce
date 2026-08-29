@@ -312,18 +312,16 @@ function App() {
   }, [isAuthenticated])
 
   const [transcript, setTranscript] = useState('')
+  const latestSessionId = useRef(sessionId);
+  const latestExecuteChat = useRef(executeChat);
 
-  // Auto-send transcribed voice using a separate effect to avoid closure staleness on sessionId
   useEffect(() => {
-    if (transcript && sessionId) {
-      const msg = transcript;
-      setTranscript(''); // clear immediately
-      setInput(''); // Clear the chat box
-      setMessages(prev => [...prev, { role: 'user', content: msg }]);
-      addAuditLog(`User voice message received`, 'action');
-      executeChat(msg);
-    }
-  }, [transcript, sessionId]);
+    latestSessionId.current = sessionId;
+  }, [sessionId]);
+
+  useEffect(() => {
+    latestExecuteChat.current = executeChat;
+  }, [executeChat]);
 
   // Voice AI Logic
   useEffect(() => {
@@ -347,9 +345,16 @@ function App() {
         
         setInput(currentTranscript); // Type it in the chat box
 
-        if (isFinal) {
-           setTranscript(currentTranscript); // Trigger auto-send
+        if (isFinal && currentTranscript.trim().length > 0) {
+           const msg = currentTranscript;
+           setInput('');
            setIsListening(false);
+           
+           if (latestSessionId.current) {
+             setMessages(prev => [...prev, { role: 'user', content: msg }]);
+             addAuditLog(`User voice message received`, 'action');
+             latestExecuteChat.current(msg);
+           }
         }
       };
 
@@ -754,6 +759,21 @@ function App() {
                   <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                   <line x1="12" y1="19" x2="12" y2="22"></line>
                 </svg>
+              </button>
+              <button 
+                type="button" 
+                onClick={() => {
+                   // Simulate interim
+                   setInput("find me a");
+                   setTimeout(() => {
+                     setInput("find me a red cap");
+                     setTranscript("find me a red cap");
+                   }, 1000);
+                }}
+                style={{ fontSize: '10px', background: 'red', padding: '2px', cursor: 'pointer' }}
+                title="Test Voice"
+              >
+                Test
               </button>
               <button onClick={sendMessage} className="send-btn">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
