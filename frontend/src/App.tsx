@@ -96,6 +96,59 @@ interface AuditEvent {
   type: 'info' | 'success' | 'warning' | 'error' | 'neutral' | 'action';
 }
 
+const AnalyticsTab = () => {
+  const [data, setData] = useState<any>(null);
+  
+  useEffect(() => {
+    fetch('http://127.0.0.1:8000/v1/admin/analytics')
+      .then(res => res.json())
+      .then(data => setData(data))
+      .catch(err => console.error(err));
+  }, []);
+
+  if (!data) return <div style={{padding: '24px'}}>Loading analytics...</div>;
+
+  return (
+    <motion.div className="card" style={{ padding: '24px', margin: '0', flex: 1, overflowY: 'auto' }} initial={{opacity:0}} animate={{opacity:1}}>
+      <h2 style={{ fontSize: '20px', marginBottom: '24px' }}>Agent Analytics</h2>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+        <div style={{ padding: '20px', background: '#F9FAFB', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
+          <h3 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#6B7280' }}>Win Rate</h3>
+          <p style={{ margin: 0, fontSize: '28px', fontWeight: 'bold' }}>{data.win_rate_pct}%</p>
+          <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#9CA3AF' }}>{data.checked_out_sessions} / {data.total_sessions} sessions</p>
+        </div>
+        <div style={{ padding: '20px', background: '#F9FAFB', borderRadius: '8px', border: '1px solid #E5E7EB' }}>
+          <h3 style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#6B7280' }}>Avg. Negotiation Spread</h3>
+          <p style={{ margin: 0, fontSize: '28px', fontWeight: 'bold' }}>₹{Math.floor(data.avg_negotiation_spread_paise / 100)}</p>
+          <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#9CA3AF' }}>Discount given vs. list price</p>
+        </div>
+      </div>
+
+      <h3 style={{ fontSize: '16px', marginBottom: '16px' }}>Top Missed Opportunities</h3>
+      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <thead>
+          <tr style={{ borderBottom: '1px solid #E5E7EB', textAlign: 'left' }}>
+            <th style={{ padding: '12px 8px', color: '#6B7280', fontWeight: 500 }}>Search Query</th>
+            <th style={{ padding: '12px 8px', color: '#6B7280', fontWeight: 500 }}>Failed Attempts</th>
+          </tr>
+        </thead>
+        <tbody>
+          {data.top_missed_searches.map((m: any, i: number) => (
+            <tr key={i} style={{ borderBottom: '1px solid #F3F4F6' }}>
+              <td style={{ padding: '12px 8px' }}>{m.query}</td>
+              <td style={{ padding: '12px 8px' }}>{m.count}</td>
+            </tr>
+          ))}
+          {data.top_missed_searches.length === 0 && (
+            <tr><td colSpan={2} style={{ padding: '12px 8px', color: '#9CA3AF' }}>No missed searches yet.</td></tr>
+          )}
+        </tbody>
+      </table>
+    </motion.div>
+  );
+};
+
 const InventoryTab = () => {
   const [products, setProducts] = useState<any[]>([]);
   
@@ -107,7 +160,7 @@ const InventoryTab = () => {
   }, []);
 
   return (
-    <motion.div className="card" style={{ padding: '24px', margin: '20px', minHeight: '600px' }} initial={{opacity:0}} animate={{opacity:1}}>
+    <motion.div className="card" style={{ padding: '24px', margin: '0', minHeight: '0', flex: 1, overflowY: 'auto' }} initial={{opacity:0}} animate={{opacity:1}}>
       <h2 style={{ fontSize: '20px', marginBottom: '20px' }}>AI Generated Inventory ({products.length})</h2>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '20px' }}>
         {products.map((p, i) => (
@@ -148,7 +201,7 @@ const SettingsTab = () => {
   };
 
   return (
-    <motion.div className="card" style={{ padding: '24px', margin: '20px', maxWidth: '600px' }} initial={{opacity:0}} animate={{opacity:1}}>
+    <motion.div className="card" style={{ padding: '24px', margin: '0', flex: 1, overflowY: 'auto' }} initial={{opacity:0}} animate={{opacity:1}}>
       <h2 style={{ fontSize: '20px', marginBottom: '24px' }}>Guardrail Configuration</h2>
       
       <div style={{ marginBottom: '20px' }}>
@@ -222,8 +275,10 @@ interface MessageData {
 }
 
 function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'settings'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'settings' | 'analytics'>('dashboard')
   const [isListening, setIsListening] = useState(false)
+  const [isCallMode, setIsCallMode] = useState(false)
+  const isCallModeRef = useRef(false)
   const recognitionRef = useRef<any>(null)
   
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -355,15 +410,24 @@ function App() {
     
     async function initSession() {
       try {
-        const res = await fetch('http://127.0.0.1:8000/v1/sessions', { method: 'POST' })
+        const payload = auth.currentUser?.phoneNumber ? { phone_number: auth.currentUser.phoneNumber } : {};
+        const res = await fetch('http://127.0.0.1:8000/v1/sessions', { 
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        })
         const data = await res.json()
         setSessionId(data.session_id)
         
         const shortId = data.session_id.substring(0,8);
-        addAuditLog(`Session started: ${shortId}`, 'neutral');
-        setSessionsCount(prev => prev + 1);
-        
-        setMessages([{role: 'assistant', content: 'Hi! I can help you find something from Meera\'s Store. What are you looking for?'}])
+        if (data.resumed) {
+            addAuditLog(`Session resumed: ${shortId}`, 'neutral');
+            setMessages([{role: 'assistant', content: 'Welcome back! Your previous cart and context have been loaded. What would you like to do next?'}])
+        } else {
+            addAuditLog(`Session started: ${shortId}`, 'neutral');
+            setSessionsCount(prev => prev + 1);
+            setMessages([{role: 'assistant', content: 'Hi! I can help you find something from Meera\'s Store. What are you looking for?'}])
+        }
       } catch (e) {
         console.error("Failed to init session", e)
       }
@@ -459,6 +523,31 @@ function App() {
     }
   };
 
+  const toggleCallMode = () => {
+    if (!recognitionRef.current) {
+      alert("Speech Recognition is not supported.");
+      return;
+    }
+    if (isCallMode) {
+      setIsCallMode(false);
+      isCallModeRef.current = false;
+      window.speechSynthesis.cancel();
+      if (isListening) {
+        recognitionRef.current.stop();
+        setIsListening(false);
+      }
+    } else {
+      setIsCallMode(true);
+      isCallModeRef.current = true;
+      try {
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -518,6 +607,23 @@ function App() {
           role: 'assistant',
           content: data.data.upsell_message
         }]);
+        addAuditLog(`Upsell presented`, 'warning');
+      }
+      
+      if (isCallModeRef.current) {
+        const textToSpeak = data.content + (data.data?.upsell_message ? ". " + data.data.upsell_message : "");
+        const utterance = new SpeechSynthesisUtterance(textToSpeak);
+        utterance.onend = () => {
+           if (isCallModeRef.current) {
+               try {
+                   recognitionRef.current.start();
+                   setIsListening(true);
+               } catch (e) {
+                   console.error(e);
+               }
+           }
+        };
+        window.speechSynthesis.speak(utterance);
       }
       
       if (data.decision === "approved") {
@@ -728,6 +834,7 @@ function App() {
           <h1>Agent Overview</h1>
           <div className="tabs">
             <button className={activeTab === 'dashboard' ? 'active' : ''} onClick={() => setActiveTab('dashboard')}>Dashboard</button>
+            <button className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>Analytics</button>
             <button className={activeTab === 'inventory' ? 'active' : ''} onClick={() => setActiveTab('inventory')}>Inventory</button>
             <button className={activeTab === 'settings' ? 'active' : ''} onClick={() => setActiveTab('settings')}>Guardrails</button>
           </div>
@@ -883,11 +990,16 @@ function App() {
                 placeholder={isListening ? "Listening..." : (isThinking ? "Thinking..." : "Type a message or upload image...")}
                 disabled={isThinking}
               />
-              <button className={`mic-btn ${isListening ? 'listening' : ''}`} onClick={toggleListening} title="Voice Command">
+              <button className={`mic-btn ${isListening && !isCallMode ? 'listening' : ''}`} onClick={toggleListening} title="Voice Command">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
                   <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
                   <line x1="12" y1="19" x2="12" y2="22"></line>
+                </svg>
+              </button>
+              <button className={`mic-btn ${isCallMode ? 'listening' : ''}`} onClick={toggleCallMode} title="Voice Call Mode" style={{ backgroundColor: isCallMode ? '#ef4444' : undefined, color: isCallMode ? 'white' : undefined }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
                 </svg>
               </button>
               <button onClick={sendMessage} className="send-btn">
@@ -927,6 +1039,9 @@ function App() {
 
         </motion.div>
       )}
+
+      {/* Analytics View */}
+      {activeTab === 'analytics' && <AnalyticsTab />}
 
       {/* Inventory View */}
       {activeTab === 'inventory' && <InventoryTab />}

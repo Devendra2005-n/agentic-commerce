@@ -106,7 +106,8 @@ class Session(Base):
     merchant_id = Column(Text, ForeignKey('merchant_config.merchant_id'), nullable=False)
     actor_type = Column(Enum(ActorTypeEnum, name='actor_type_enum'), nullable=False)
     agent_token_id = Column(Text, ForeignKey('agent_tokens.token_id'))
-    buyer_ref = Column(Text)
+    buyer_ref = Column(Text) # email or some other ref
+    phone_number = Column(Text) # Used for Omnichannel Sync
     status = Column(Enum(SessionStatusEnum, name='session_status_enum'), nullable=False, default=SessionStatusEnum.active)
     agent_mode = Column(Text, nullable=False, default="sales")
     started_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
@@ -172,3 +173,12 @@ class AuditEvent(Base):
     event_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     
     session = relationship("Session", back_populates="audit_events")
+
+class MissedSearch(Base):
+    __tablename__ = 'missed_searches'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    session_id = Column(UUID(as_uuid=True), ForeignKey('sessions.session_id', ondelete='CASCADE'), nullable=False)
+    search_query = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    
+    session = relationship("Session")

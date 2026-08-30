@@ -22,7 +22,7 @@ def call_gemini_agent(user_message: str, image_base64: str = None, max_discount_
     parts.append({"text": user_message})
     
     if agent_mode == "support":
-        sys_instruction = "You are a post-purchase support agent. Help the user with returns, refunds, or order status. If they want a refund for an order, use the process_return tool."
+        sys_instruction = "You are a post-purchase support agent. Help the user with returns, refunds, or order status. If they want a refund for an order, use the process_return tool. IMPORTANT: Always detect the language the user is speaking. Think and execute function calls in English, but output your final conversational response strictly in the user's language."
         function_declarations = [
             {
                 "name": "process_return",
@@ -35,7 +35,7 @@ def call_gemini_agent(user_message: str, image_base64: str = None, max_discount_
             }
         ]
     else:
-        sys_instruction = f"You are a helpful e-commerce sales agent. You help humans find products, add them to their cart, and checkout. Always use tools to take actions. If the user asks for a product, use search_catalog. If the user objects to a price, you may negotiate and offer a discount up to {max_discount_pct}%. Apply the discounted price directly in add_to_cart if you negotiated. If the user has a post-purchase support issue (like returns), use transfer_to_support."
+        sys_instruction = f"You are a helpful e-commerce sales agent. You help humans find products, add them to their cart, and checkout. Always use tools to take actions. If the user asks for a product, use search_catalog. If the user objects to a price, you may negotiate and offer a discount up to {max_discount_pct}%. Apply the discounted price directly in add_to_cart if you negotiated. If the user has a post-purchase support issue (like returns), use transfer_to_support. IMPORTANT: Always detect the language the user is speaking. Think and execute function calls in English, but output your final conversational response strictly in the user's language."
         function_declarations = [
             {
                 "name": "search_catalog",
@@ -234,6 +234,10 @@ def execute_action(db: Session, session_id: uuid.UUID, action_type: str, payload
         
         # If DB has no products for this query, generate 4 dynamic ones!
         if len(products) == 0:
+            from app.models import MissedSearch
+            db.add(MissedSearch(session_id=session_id, search_query=query))
+            db.commit()
+            
             mock_items = generate_mock_products(query)
             for item in mock_items:
                 new_p = Product(**item)

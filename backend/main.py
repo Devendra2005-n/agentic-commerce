@@ -20,6 +20,11 @@ class ChatRequest(BaseModel):
 
 app = FastAPI(title="Growth & Trust Agent API")
 
+@app.on_event("startup")
+def startup_event():
+    from app.scheduler import start_scheduler
+    start_scheduler()
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -40,20 +45,29 @@ def get_catalog(query: str, max_price_paise: int = None, tags: str = None, db: S
 
 from app.models import MerchantConfig, Session as DbSession, ActorTypeEnum
 
+class SessionRequest(BaseModel):
+    phone_number: str = None
+
 @app.post("/v1/sessions")
-def create_session(db: Session = Depends(get_db)):
+def create_session(req: SessionRequest = None, db: Session = Depends(get_db)):
     merchant = db.query(MerchantConfig).first()
     if not merchant:
         raise HTTPException(status_code=500, detail="No merchant configured")
         
+    if req and req.phone_number:
+        existing = db.query(DbSession).filter(DbSession.phone_number == req.phone_number, DbSession.status == 'active').first()
+        if existing:
+            return {"session_id": existing.session_id, "resumed": True}
+            
     session_db = DbSession(
         merchant_id=merchant.merchant_id,
-        actor_type=ActorTypeEnum.human
+        actor_type=ActorTypeEnum.human,
+        phone_number=req.phone_number if req else None
     )
     db.add(session_db)
     db.commit()
     db.refresh(session_db)
-    return {"session_id": session_db.session_id}
+    return {"session_id": session_db.session_id, "resumed": False}
 
 @app.post("/v1/checkout/{session_id}")
 def checkout(session_id: uuid.UUID, db: Session = Depends(get_db)):
@@ -136,9 +150,15 @@ async def twilio_webhook(
     from app.models import MerchantConfig, Session as DbSession, ActorTypeEnum
     merchant = db.query(MerchantConfig).first()
     
-    sess = db.query(DbSession).filter(DbSession.buyer_ref == From, DbSession.status == 'active').first()
+    parsed_phone = From.replace("whatsapp:", "").strip()
+    
+    sess = db.query(DbSession).filter(
+        (DbSession.phone_number == parsed_phone) | (DbSession.buyer_ref == From),
+        DbSession.status == 'active'
+    ).first()
+    
     if not sess:
-        sess = DbSession(merchant_id=merchant.merchant_id, actor_type=ActorTypeEnum.human, buyer_ref=From)
+        sess = DbSession(merchant_id=merchant.merchant_id, actor_type=ActorTypeEnum.human, buyer_ref=From, phone_number=parsed_phone)
         db.add(sess)
         db.commit()
         db.refresh(sess)
@@ -155,3 +175,28 @@ async def twilio_webhook(
 </Response>"""
     return Response(content=twiml_response, media_type="application/xml")
 
+@app.get("/v1/admin/analytics")
+def get_analytics(db: Session = Depends(get_db)):
+    from app.models import Session as DbSession, CartItem, Product, MissedSearch
+    from sqlalchemy import func
+    
+    total_sessions = db.query(func.count(DbSession.session_id)).scalar() or 0
+    checked_out = db.query(func.count(DbSession.session_id)).filter(DbSession.status == 'checked_out').scalar() or 0
+    win_rate = (checked_out / total_sessions * 100) if total_sessions > 0 else 0
+    
+    # Negotiation spread: average of (Product.price_paise - CartItem.price_at_add_paise)
+    items = db.query(CartItem.price_at_add_paise, Product.price_paise).join(Product, CartItem.sku == Product.sku).all()
+    spreads = [(p - c) for c, p in items if p > c]
+    avg_spread = sum(spreads) / len(spreads) if spreads else 0
+    
+    # Missed searches
+    missed = db.query(MissedSearch.search_query, func.count(MissedSearch.id).label('count')).group_by(MissedSearch.search_query).order_by(func.count(MissedSearch.id).desc()).limit(5).all()
+    missed_list = [{"query": m[0], "count": m[1]} for m in missed]
+    
+    return {
+        "win_rate_pct": round(win_rate, 2),
+        "avg_negotiation_spread_paise": round(avg_spread, 2),
+        "total_sessions": total_sessions,
+        "checked_out_sessions": checked_out,
+        "top_missed_searches": missed_list
+    }
