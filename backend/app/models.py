@@ -182,3 +182,20 @@ class MissedSearch(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
     
     session = relationship("Session")
+
+class PurchaseOrder(Base):
+    __tablename__ = 'purchase_orders'
+    po_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    sku = Column(Text, ForeignKey('products.sku'), nullable=False)
+    qty_ordered = Column(Integer, nullable=False)
+    negotiated_price_paise = Column(Integer, nullable=False)
+    status = Column(Text, nullable=False, default="sent_to_supplier")
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+class OutboundCampaign(Base):
+    __tablename__ = 'outbound_campaigns'
+    campaign_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    sku = Column(Text, ForeignKey('products.sku'), nullable=False)
+    message_body = Column(Text, nullable=False)
+    target_phone = Column(Text, nullable=False)
+    sent_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)

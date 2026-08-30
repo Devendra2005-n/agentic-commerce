@@ -22,7 +22,7 @@ def call_gemini_agent(user_message: str, image_base64: str = None, max_discount_
     parts.append({"text": user_message})
     
     if agent_mode == "support":
-        sys_instruction = "You are a post-purchase support agent. Help the user with returns, refunds, or order status. If they want a refund for an order, use the process_return tool. IMPORTANT: Always detect the language the user is speaking. Think and execute function calls in English, but output your final conversational response strictly in the user's language."
+        sys_instruction = "You are a multi-agent escalation court. When the user has a dispute or return request, you must simulate the following chain of thought in your reasoning:\n1. [Support Agent]: Summarizes the complaint and evidence.\n2. [Policy Agent]: Checks the 30-day refund policy.\n3. [Manager Agent]: Issues the final ruling.\nOnly output the Manager Agent's final ruling to the user. If a refund is approved by the Manager, use the process_return tool. IMPORTANT: Output your final response in the user's detected language."
         function_declarations = [
             {
                 "name": "process_return",
@@ -66,6 +66,18 @@ def call_gemini_agent(user_message: str, image_base64: str = None, max_discount_
             {
                 "name": "transfer_to_support",
                 "description": "Transfer the user to the support agent for post-purchase issues like returns.",
+            },
+            {
+                "name": "visual_try_on",
+                "description": "Use this when the user uploads an image of their room or space and asks to see how a product looks inside it. Provide the product title and a brief description of the user's room.",
+                "parameters": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "product_title": {"type": "STRING"},
+                        "room_description": {"type": "STRING"}
+                    },
+                    "required": ["product_title", "room_description"]
+                }
             }
         ]
 
@@ -296,4 +308,18 @@ def execute_action(db: Session, session_id: uuid.UUID, action_type: str, payload
         return {"status": "transferred", "message": "Transferred to support."}
     elif action_type == 'process_return':
         return {"status": "success", "message": f"Processed return for order {payload.get('order_id')}."}
+    elif action_type == 'visual_try_on':
+        import urllib.parse
+        product_title = payload.get('product_title', 'a product')
+        room_desc = payload.get('room_description', 'a room')
+        
+        prompt = f"A realistic photo of {room_desc} featuring a {product_title} placed naturally inside"
+        encoded_prompt = urllib.parse.quote(prompt)
+        image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}"
+        
+        return {
+            "status": "success", 
+            "message": f"Here is how the {product_title} might look in your space!", 
+            "try_on_image_url": image_url
+        }
     return {"status": "unknown_action"}

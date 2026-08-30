@@ -915,6 +915,11 @@ function App() {
                   >
                     <div className={`message ${m.role}`}>
                       {m.content}
+                      {m.data?.try_on_image_url && (
+                        <div style={{marginTop: '12px'}}>
+                          <img src={m.data.try_on_image_url} alt="Visual Try-On" style={{width: '100%', borderRadius: '8px', border: '1px solid #E5E7EB'}} />
+                        </div>
+                      )}
                     </div>
                     
                     {/* Rich Product UI */}
