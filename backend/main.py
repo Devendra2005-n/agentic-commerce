@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, Request, HTTPException, Form, Response
+from fastapi import FastAPI, Depends, Request, HTTPException, Form, Response, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 import uuid
@@ -200,3 +200,42 @@ def get_analytics(db: Session = Depends(get_db)):
         "checked_out_sessions": checked_out,
         "top_missed_searches": missed_list
     }
+
+@app.get("/v1/storefront/config")
+def get_storefront_config(db: Session = Depends(get_db)):
+    from app.models import StorefrontConfig
+    config = db.query(StorefrontConfig).filter_by(is_active=True).first()
+    if not config:
+        return {"theme_color": "#ef4444", "welcome_message": "Hi! I can help you find something from Meera's Store. What are you looking for?"}
+    return {"theme_color": config.theme_color, "welcome_message": config.welcome_message}
+
+@app.get("/v1/admin/social")
+def get_social_feed(db: Session = Depends(get_db)):
+    from app.models import SocialFeed
+    posts = db.query(SocialFeed).order_by(SocialFeed.created_at.desc()).limit(20).all()
+    return [{"post_id": str(p.post_id), "image_url": p.image_url, "caption": p.caption, "platform": p.platform, "likes_count": p.likes_count, "comments_count": p.comments_count, "shares_count": p.shares_count, "created_at": p.created_at.isoformat()} for p in posts]
+
+@app.post("/v1/admin/social/trigger")
+def trigger_social_agent(background_tasks: BackgroundTasks):
+    from app.scheduler import social_media_agent
+    background_tasks.add_task(social_media_agent)
+    return {"status": "triggered"}
+
+@app.delete("/v1/admin/social/{post_id}")
+def delete_social_post(post_id: str, db: Session = Depends(get_db)):
+    from app.models import SocialFeed
+    post = db.query(SocialFeed).filter(SocialFeed.post_id == post_id).first()
+    if post:
+        db.delete(post)
+        db.commit()
+        return {"status": "deleted"}
+    return {"status": "not_found"}
+
+@app.get("/v1/admin/report")
+def get_executive_report(db: Session = Depends(get_db)):
+    from app.models import ExecutiveReport
+    report = db.query(ExecutiveReport).order_by(ExecutiveReport.created_at.desc()).first()
+    if not report:
+        return {"report_markdown": "No report generated yet. The Sentiment Agent will run tonight."}
+    return {"report_markdown": report.report_markdown, "generated_at": report.created_at.isoformat()}
+

@@ -199,3 +199,33 @@ class OutboundCampaign(Base):
     message_body = Column(Text, nullable=False)
     target_phone = Column(Text, nullable=False)
     sent_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+class UserProfile(Base):
+    __tablename__ = 'user_profiles'
+    phone_number = Column(Text, primary_key=True)
+    tags_json = Column(JSONB, nullable=False, default=[])
+
+class SocialFeed(Base):
+    __tablename__ = 'social_feed'
+    post_id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    image_url = Column(Text, nullable=False)
+    caption = Column(Text, nullable=False)
+    platform = Column(Text, nullable=False, default="Instagram")
+    likes_count = Column(Integer, nullable=False, default=0)
+    comments_count = Column(Integer, nullable=False, default=0)
+    shares_count = Column(Integer, nullable=False, default=0)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+
+class StorefrontConfig(Base):
+    __tablename__ = 'storefront_config'
+    config_id = Column(Integer, primary_key=True, autoincrement=True)
+    theme_color = Column(Text, nullable=False, default="#ef4444")
+    welcome_message = Column(Text, nullable=False, default="Hi! I can help you find something from Meera's Store. What are you looking for?")
+    is_active = Column(Boolean, default=True)
+
+class ExecutiveReport(Base):
+    __tablename__ = 'executive_reports'
+    report_id = Column(Integer, primary_key=True, autoincrement=True)
+    report_markdown = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+

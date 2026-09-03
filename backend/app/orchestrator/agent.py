@@ -8,7 +8,7 @@ from app.guardrail.engine import evaluate
 from app.catalog.service import search_catalog
 from app.payments.service import initiate_checkout
 
-def call_gemini_agent(user_message: str, image_base64: str = None, max_discount_pct: float = 0, agent_mode: str = "sales"):
+def call_gemini_agent(user_message: str, image_base64: str = None, max_discount_pct: float = 0, agent_mode: str = "sales", user_tags: list = None):
     import os
     # Load inside function to pick up live .env changes!
     api_key = os.getenv("GEMINI_API_KEY", "dummy_key")
@@ -21,6 +21,10 @@ def call_gemini_agent(user_message: str, image_base64: str = None, max_discount_
         parts.append({"inlineData": {"mimeType": "image/jpeg", "data": image_base64}})
     parts.append({"text": user_message})
     
+    tags_str = ""
+    if user_tags:
+        tags_str = f"\n\nUSER PROFILE TAGS: {', '.join(user_tags)}. Use these psychological tags to hyper-personalize your sales pitch to the user's personality!"
+        
     if agent_mode == "support":
         sys_instruction = "You are a multi-agent escalation court. When the user has a dispute or return request, you must simulate the following chain of thought in your reasoning:\n1. [Support Agent]: Summarizes the complaint and evidence.\n2. [Policy Agent]: Checks the 30-day refund policy.\n3. [Manager Agent]: Issues the final ruling.\nOnly output the Manager Agent's final ruling to the user. If a refund is approved by the Manager, use the process_return tool. IMPORTANT: Output your final response in the user's detected language."
         function_declarations = [
@@ -35,7 +39,7 @@ def call_gemini_agent(user_message: str, image_base64: str = None, max_discount_
             }
         ]
     else:
-        sys_instruction = f"You are a helpful e-commerce sales agent. You help humans find products, add them to their cart, and checkout. Always use tools to take actions. If the user asks for a product, use search_catalog. If the user objects to a price, you may negotiate and offer a discount up to {max_discount_pct}%. Apply the discounted price directly in add_to_cart if you negotiated. If the user has a post-purchase support issue (like returns), use transfer_to_support. IMPORTANT: Always detect the language the user is speaking. Think and execute function calls in English, but output your final conversational response strictly in the user's language."
+        sys_instruction = f"You are a helpful e-commerce sales agent. You help humans find products, add them to their cart, and checkout. Always use tools to take actions. If the user asks for a product, use search_catalog. If the user objects to a price, you MUST offer EXACTLY a {max_discount_pct}% discount. Do not offer any other discount percentage. Apply the discounted price directly in add_to_cart if you negotiated. If the user has a post-purchase support issue (like returns), use transfer_to_support. IMPORTANT: Always detect the language the user is speaking. Think and execute function calls in English, but output your final conversational response strictly in the user's language." + tags_str
         function_declarations = [
             {
                 "name": "search_catalog",
@@ -104,14 +108,20 @@ def call_gemini_agent(user_message: str, image_base64: str = None, max_discount_
         return None
 
 def process_chat(db: Session, session_id: uuid.UUID, user_message: str, image_base64: str = None) -> dict:
-    from app.models import MerchantConfig, Session as DbSession
+    from app.models import MerchantConfig, Session as DbSession, UserProfile
     merchant = db.query(MerchantConfig).first()
     max_discount_pct = float(merchant.max_discount_pct) if merchant else 0.0
     
     sess = db.query(DbSession).filter(DbSession.session_id == session_id).first()
     agent_mode = sess.agent_mode if sess else "sales"
     
-    gemini_resp = call_gemini_agent(user_message, image_base64, max_discount_pct, agent_mode)
+    user_tags = []
+    if sess and sess.phone_number:
+        profile = db.query(UserProfile).filter_by(phone_number=sess.phone_number).first()
+        if profile and profile.tags_json:
+            user_tags = profile.tags_json
+    
+    gemini_resp = call_gemini_agent(user_message, image_base64, max_discount_pct, agent_mode, user_tags)
     
     tool_call = None
     text_content = ""

@@ -74,7 +74,8 @@ const ProductCard = ({ p, pIdx, handleActionMessage }: { p: any, pIdx: number, h
               setHasError(true);
               e.currentTarget.src = getFallbackUrl();
             } else {
-              e.currentTarget.src = `https://placehold.co/400x400/f3f4f6/9ca3af.png?text=${encodeURIComponent(p.title)}`;
+              // Network is actively blocking all 3 external image domains. Use a completely native inline SVG fallback.
+              e.currentTarget.src = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="%23f3f4f6"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="20px" fill="%239ca3af">${encodeURIComponent(p.title)}</text></svg>`;
             }
           }}
         />
@@ -97,13 +98,26 @@ interface AuditEvent {
 }
 
 const AnalyticsTab = () => {
-  const [data, setData] = useState<any>(null);
+    const [data, setData] = useState<any>(null);
+  const [report, setReport] = useState<any>(null);
   
   useEffect(() => {
-    fetch('http://127.0.0.1:8000/v1/admin/analytics')
+    const fetchAnalytics = () => {
+      fetch('http://127.0.0.1:8000/v1/admin/analytics')
+        .then(res => res.json())
+        .then(data => setData(data))
+        .catch(err => console.error(err));
+    };
+    
+    fetchAnalytics(); // Initial fetch
+    const interval = setInterval(fetchAnalytics, 5000); // Live poll every 5s
+      
+    fetch('http://127.0.0.1:8000/v1/admin/report')
       .then(res => res.json())
-      .then(data => setData(data))
+      .then(data => setReport(data))
       .catch(err => console.error(err));
+      
+    return () => clearInterval(interval);
   }, []);
 
   if (!data) return <div style={{padding: '24px'}}>Loading analytics...</div>;
@@ -124,6 +138,15 @@ const AnalyticsTab = () => {
           <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#9CA3AF' }}>Discount given vs. list price</p>
         </div>
       </div>
+      
+      {report && (
+        <div style={{ marginBottom: '32px', padding: '20px', background: '#FEF2F2', borderRadius: '8px', border: '1px solid #FCA5A5' }}>
+          <h3 style={{ fontSize: '16px', marginBottom: '12px', color: '#B91C1C' }}>AI Executive Summary</h3>
+          <div style={{ fontSize: '14px', color: '#7F1D1D', whiteSpace: 'pre-wrap' }}>
+            {report.report_markdown}
+          </div>
+        </div>
+      )}
 
       <h3 style={{ fontSize: '16px', marginBottom: '16px' }}>Top Missed Opportunities</h3>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>
@@ -267,6 +290,104 @@ const SettingsTab = () => {
   );
 };
 
+const SocialTab = () => {
+  const [posts, setPosts] = useState<any[]>([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  
+  const fetchPosts = () => {
+    fetch('http://localhost:8000/v1/admin/social')
+      .then(res => res.json())
+      .then(data => setPosts(data || []))
+      .catch(err => console.error(err));
+  };
+
+  useEffect(() => {
+    fetchPosts();
+  }, []);
+
+  const handleGenerate = () => {
+    setIsGenerating(true);
+    fetch('http://localhost:8000/v1/admin/social/trigger', { method: 'POST' })
+      .then(() => {
+        setTimeout(() => {
+          fetchPosts();
+          setIsGenerating(false);
+        }, 5000); // wait a bit for background task to finish
+      })
+      .catch(err => {
+        console.error(err);
+        setIsGenerating(false);
+      });
+  };
+
+  const handleDelete = (postId: string) => {
+    fetch(`http://localhost:8000/v1/admin/social/${postId}`, { method: 'DELETE' })
+      .then(() => fetchPosts())
+      .catch(err => console.error(err));
+  };
+
+  return (
+    <motion.div className="card" style={{ padding: '24px', margin: '0', flex: 1, overflowY: 'auto' }} initial={{opacity:0}} animate={{opacity:1}}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <h2 style={{ fontSize: '20px', margin: 0 }}>Autonomous Social Media Feed</h2>
+        <button 
+          onClick={handleGenerate} 
+          disabled={isGenerating}
+          style={{ background: '#111', color: 'white', padding: '8px 16px', borderRadius: '6px', border: 'none', cursor: isGenerating ? 'not-allowed' : 'pointer', fontSize: '14px', opacity: isGenerating ? 0.7 : 1 }}
+        >
+          {isGenerating ? 'Generating...' : 'Generate New Post'}
+        </button>
+      </div>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '20px' }}>
+        {posts.map((p, i) => (
+          <div key={i} style={{ border: '1px solid #E5E7EB', borderRadius: '12px', overflow: 'hidden', background: '#fff', position: 'relative' }}>
+            <button 
+              onClick={() => handleDelete(p.post_id)}
+              style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(255, 255, 255, 0.9)', border: 'none', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', color: '#EF4444' }}
+              title="Delete Post"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+            <img 
+              src={p.image_url} 
+              alt="Social post" 
+              style={{ width: '100%', height: '280px', objectFit: 'cover' }} 
+              onError={(e) => {
+                e.currentTarget.src = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="280"><rect width="400" height="280" fill="%23f3f4f6"/><text x="50%" y="50%" dominant-baseline="middle" text-anchor="middle" font-family="sans-serif" font-size="20px" fill="%239ca3af">Social Post Image</text></svg>`;
+              }}
+            />
+            <div style={{ padding: '16px' }}>
+              <p style={{ margin: '0 0 16px 0', fontSize: '14px', lineHeight: '1.5', color: '#111' }}>{p.caption}</p>
+              
+              <div style={{ display: 'flex', gap: '16px', marginBottom: '16px', borderTop: '1px solid #F3F4F6', paddingTop: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#6B7280', fontSize: '13px', fontWeight: 500 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                  {p.likes_count?.toLocaleString() || 0}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#6B7280', fontSize: '13px', fontWeight: 500 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>
+                  {p.comments_count?.toLocaleString() || 0}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#6B7280', fontSize: '13px', fontWeight: 500 }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+                  {p.shares_count?.toLocaleString() || 0}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', color: '#9CA3AF', fontSize: '12px' }}>
+                <span>{p.platform}</span>
+                <span>{new Date(p.created_at).toLocaleDateString()}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+        {posts.length === 0 && <div style={{color: '#6B7280'}}>No autonomous social posts generated yet.</div>}
+      </div>
+    </motion.div>
+  );
+};
+
 interface MessageData {
   role: 'user' | 'assistant' | 'system';
   content: string;
@@ -275,7 +396,7 @@ interface MessageData {
 }
 
 function App() {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'settings' | 'analytics'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'settings' | 'analytics' | 'social'>('dashboard')
   const [isListening, setIsListening] = useState(false)
   const [isCallMode, setIsCallMode] = useState(false)
   const isCallModeRef = useRef(false)
@@ -307,7 +428,26 @@ function App() {
   const [ordersCount, setOrdersCount] = useState(() => parseInt(localStorage.getItem('ordersCount') || '7'))
   const [revenue, setRevenue] = useState(() => parseInt(localStorage.getItem('revenue') || '8940'))
   
+  const [storefrontConfig, setStorefrontConfig] = useState<any>(null);
+
   useEffect(() => {
+    fetch('http://127.0.0.1:8000/v1/storefront/config')
+      .then(res => res.json())
+      .then(data => {
+        setStorefrontConfig(data);
+        document.documentElement.style.setProperty('--primary-color', data.theme_color);
+        setMessages([{ role: 'assistant', content: data.welcome_message }]);
+      })
+      .catch(err => console.error(err));
+  }, []);
+
+  useEffect(() => {
+    // Process redirect result if coming back from Google
+    getRedirectResult(auth).catch((error) => {
+      console.error("Redirect auth error:", error);
+      setAuthError(error.message);
+    });
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setIsAuthenticated(true);
@@ -341,13 +481,14 @@ function App() {
   }
 
   // --- Auth Handlers ---
-  const handleGoogleSignIn = async () => {
-    try {
-      setAuthError('')
-      await signInWithRedirect(auth, googleProvider)
-    } catch (e: any) {
+  const handleGoogleSignIn = () => {
+    setAuthError('')
+    googleProvider.setCustomParameters({
+      prompt: 'select_account'
+    });
+    signInWithPopup(auth, googleProvider).catch((e: any) => {
       setAuthError(e.message)
-    }
+    });
   }
 
   const handleEmailAuth = async () => {
@@ -486,8 +627,14 @@ function App() {
         console.error('Speech recognition error', event.error);
         if (event.error === 'not-allowed') {
           alert("Microphone access was denied! Please allow microphone access in your browser URL bar settings and try again.");
+          setIsCallMode(false);
+          isCallModeRef.current = false;
+        } else if (event.error === 'network') {
+          alert("Your browser is blocking the Speech Transcription servers! This usually happens if you are using Avast Secure Browser, Brave, or a strict ad-blocker. Please use standard Google Chrome or Microsoft Edge for the Voice AI to work!");
+          setIsCallMode(false);
+          isCallModeRef.current = false;
         } else if (event.error !== 'no-speech') {
-          alert("Microphone error: " + event.error);
+          console.warn("Microphone error: " + event.error);
         }
         setIsListening(false);
       };
@@ -835,6 +982,7 @@ function App() {
           <div className="tabs">
             <button className={activeTab === 'dashboard' ? 'active' : ''} onClick={() => setActiveTab('dashboard')}>Dashboard</button>
             <button className={activeTab === 'analytics' ? 'active' : ''} onClick={() => setActiveTab('analytics')}>Analytics</button>
+            <button className={activeTab === 'social' ? 'active' : ''} onClick={() => setActiveTab('social')}>Social Feed</button>
             <button className={activeTab === 'inventory' ? 'active' : ''} onClick={() => setActiveTab('inventory')}>Inventory</button>
             <button className={activeTab === 'settings' ? 'active' : ''} onClick={() => setActiveTab('settings')}>Guardrails</button>
           </div>
@@ -1047,6 +1195,9 @@ function App() {
 
       {/* Analytics View */}
       {activeTab === 'analytics' && <AnalyticsTab />}
+
+      {/* Social View */}
+      {activeTab === 'social' && <SocialTab />}
 
       {/* Inventory View */}
       {activeTab === 'inventory' && <InventoryTab />}
